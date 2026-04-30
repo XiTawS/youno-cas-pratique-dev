@@ -2,13 +2,23 @@
 
 ## État (au 2026-04-30)
 
-Phase **Pipeline LLM & scoring** (J3 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 + J2 terminés** : monorepo pnpm + Fastify + Vite/React/Tailwind/shadcn + Clerk (email + password admin-managed) + Neon/Drizzle (table `users` vide) + déploiement Vercel + Render + endpoint `POST /api/analyze` (Firecrawl + Wappalyzer en parallèle, 3-5 pages markdown + tech stack en 2-15s sur Stripe / Linear / Notion).
+Phase **UI complète** (J4 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 + J2 + J3 terminés** :
+
+- J1 : monorepo pnpm + Fastify + Vite/React/Tailwind/shadcn + Clerk (email + password admin-managed) + Neon/Drizzle + déploiement Vercel + Render
+- J2 : `POST /api/analyze` v1 - Firecrawl + Wappalyzer, validé sur Stripe / Linear / Notion
+- J3 : `POST /api/analyze` v2 - extraction LLM via OpenRouter (Claude Sonnet 4.5, tool use forcé) + scoring Maturité GTM /100 transparent + persistance Neon + cache 24h. Validé live sur Cal (70/100) et Stripe (55/100).
 
 ## En cours
 
-Démarrage J3 — pipeline LLM & scoring. Schema Zod des signaux GTM, wrapper Claude Agent SDK avec tool use forcé, formule Maturité GTM /100, persistance des analyses en DB + cache 24h.
+Démarrage J4 — UI complète. Page Home avec input URL + bouton Analyser (RHF + Zod), page Analysis avec affichage 3 axes + score + détail breakdown, page History.
 
-**⚠️ Action utilisateur requise avant le prochain push** : ajouter `FIRECRAWL_API_KEY` aux envs Render (Settings → Environment), sinon le redeploy de l'API en prod échouera au boot via la validation Zod fail-fast.
+**⚠️ Actions utilisateur requises avant le prochain push prod** : ajouter sur Render (Settings → Environment) :
+
+- `FIRECRAWL_API_KEY` (J2)
+- `OPENROUTER_API_KEY` (J3)
+- `LLM_MODEL=anthropic/claude-sonnet-4.5` (J3, optionnel — défaut OK)
+
+Sans ces envs, le boot Render échouera via la validation Zod fail-fast.
 
 ## Prochaines actions
 
@@ -36,11 +46,11 @@ Démarrage J3 — pipeline LLM & scoring. Schema Zod des signaux GTM, wrapper Cl
 
 ### J3 — Pipeline LLM & scoring
 
-- [ ] Schema Zod des signaux dans `packages/shared/src/schemas/signals.ts`
-- [ ] Wrapper `apps/api/src/services/extraction.ts` (Claude Agent SDK + tool use)
-- [ ] Wrapper `apps/api/src/services/scoring.ts` (formule Maturité GTM)
-- [ ] Migration Drizzle pour table `analyses`
-- [ ] Persistance des analyses + cache 24h dans `POST /api/analyze`
+- [x] Schema Zod des signaux dans `packages/shared/src/schemas/signals.ts` (3 axes + breakdown)
+- [x] Wrapper `apps/api/src/services/extraction.ts` (OpenRouter + Sonnet 4.5 + tool use forcé) — bascule depuis Claude Agent SDK documentée dans ADR-009 révisé
+- [x] Wrapper `apps/api/src/services/scoring.ts` (formule Maturité GTM 20/40/25/15)
+- [x] Migration Drizzle pour table `analyses` (FK users + 2 indexes + JSONB)
+- [x] Persistance des analyses + cache 24h dans `POST /api/analyze` (lazy upsert user, status pending→success/error)
 
 ### J4 — UI complète
 
