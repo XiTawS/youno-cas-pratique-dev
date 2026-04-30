@@ -12,6 +12,7 @@ import {
 import { env } from './lib/env.js';
 import { registerAuthHook } from './plugins/auth.js';
 import { registerCorsPlugin } from './plugins/cors.js';
+import { analyzeRoute } from './routes/analyze.js';
 import { healthRoute } from './routes/health.js';
 import { meRoute } from './routes/me.js';
 
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
   // Routes - prefix /api appliqué globalement aux routes métier
   await app.register(healthRoute, { prefix: '/api' });
   await app.register(meRoute, { prefix: '/api' });
+  await app.register(analyzeRoute, { prefix: '/api' });
 
   // Error handler global - format de réponse uniforme
   app.setErrorHandler((err: FastifyError, req, reply) => {
