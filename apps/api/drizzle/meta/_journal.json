@@ -15,6 +15,13 @@
       "when": 1777581327952,
       "tag": "0001_bumpy_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777584595444,
+      "tag": "0002_refonte_status_recommendation",
+      "breakpoints": true
     }
   ]
 }

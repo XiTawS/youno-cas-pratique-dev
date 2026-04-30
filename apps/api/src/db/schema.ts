@@ -1,6 +1,6 @@
-import type { GtmSignals, ScoreBreakdown } from '@youno/shared/schemas/signals';
+import type { AnalysisStatus, Signals } from '@youno/shared/schemas/signals';
 import { sql } from 'drizzle-orm';
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Table users - synchronisée avec Clerk (1 ligne = 1 user authentifié au moins une fois).
 // Voir docs/01-architecture.md §Stockage pour le modèle complet.
@@ -16,11 +16,11 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
 // Table analyses - historique des analyses d'URL.
-// Voir docs/01-architecture.md §Stockage et ADR-010 pour le scoring.
+// Voir docs/01-architecture.md §Stockage et ADR-013 pour le statut qualitatif.
 //
-// Status flow : 'pending' (insert au début du pipeline) → 'success' OU 'error'.
-// Le pending permet de tracer une analyse qui plante en cours de pipeline
-// pour le debug et l'observabilité (et plus tard une retry policy si besoin).
+// Pipeline status flow : 'pending' (insert au début) → 'success' OU 'error'.
+// status (qualitatif) : null tant que pipeline_status != 'success', sinon enum.
+// recommendation : généré par LLM, dupliqué hors signals JSONB pour query SQL facile.
 export const analyses = pgTable(
   'analyses',
   {
@@ -30,21 +30,26 @@ export const analyses = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     url: text('url').notNull(),
     domain: text('domain').notNull(),
-    // JSONB types : on stocke les blobs Zod-validés en JSONB Postgres.
-    // $type<...>() ne génère pas de check côté DB, juste du typage TS côté
-    // Drizzle. La validation runtime est garantie en amont (Zod côté API).
-    signals: jsonb('signals').$type<GtmSignals>(),
-    techStack: jsonb('tech_stack').$type<string[]>(),
-    scoreMaturity: integer('score_maturity'),
-    scoreBreakdown: jsonb('score_breakdown').$type<ScoreBreakdown>(),
-    status: text('status', { enum: ['pending', 'success', 'error'] }).notNull(),
+    // Statut opérationnel du pipeline.
+    pipelineStatus: text('pipeline_status', { enum: ['pending', 'success', 'error'] }).notNull(),
     errorMessage: text('error_message'),
+    // Signaux factuels extraits par le LLM. JSONB conforme à SignalsSchema.
+    // null tant que pipeline_status != 'success'.
+    signals: jsonb('signals').$type<Signals>(),
+    // Statut qualitatif calculé en code à partir de signals.maturity. Voir ADR-013.
+    // null tant que pipeline_status != 'success'.
+    status: text('status', {
+      enum: ['too_early', 'to_watch', 'good_timing', 'mature'],
+    }).$type<AnalysisStatus>(),
+    // Recommandation actionnable générée par le LLM (dupliquée hors signals
+    // pour query SQL facile - ex. lister les analyses avec une reco non vide).
+    recommendation: text('recommendation'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     // Cache lookup : "y a-t-il une analyse success de ce domain dans les 24h ?"
     index('analyses_domain_created_idx').on(t.domain, sql`${t.createdAt} DESC`),
-    // History page J4 : "les N dernières analyses de cet utilisateur"
+    // History page : "les N dernières analyses de cet utilisateur"
     index('analyses_user_created_idx').on(t.userId, sql`${t.createdAt} DESC`),
   ],
 );
