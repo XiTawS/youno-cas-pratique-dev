@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
+import type { AnalysisStatus } from '@youno/shared/schemas/signals';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { fetchHistory } from '@/lib/api';
 
 // Liste paginée (50 derniers) des analyses du user connecté.
-// Cliquer sur une row redirige vers /analysis/:id.
+// Cliquer sur une row redirige vers /analysis/:id si pipelineStatus = success.
 export function History() {
   const { getToken } = useAuth();
 
@@ -63,33 +64,34 @@ export function History() {
 
         {data && data.items.length > 0 && (
           <div className="space-y-2">
-            {data.items.map((item) => (
-              <Link
-                key={item.id}
-                to={item.status === 'success' ? `/analysis/${item.id}` : '#'}
-                className={`block ${item.status !== 'success' ? 'pointer-events-none' : ''}`}
-              >
-                <Card className="hover:bg-accent/40 transition-colors">
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{item.domain}</span>
-                        <StatusBadge status={item.status} />
+            {data.items.map((item) => {
+              const isSuccess = item.pipelineStatus === 'success' && item.status !== null;
+              return (
+                <Link
+                  key={item.id}
+                  to={isSuccess ? `/analysis/${item.id}` : '#'}
+                  className={`block ${!isSuccess ? 'pointer-events-none' : ''}`}
+                >
+                  <Card className="hover:bg-accent/40 transition-colors">
+                    <CardContent className="flex items-center justify-between gap-4 p-4">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium truncate">{item.domain}</span>
+                          <PipelineStatusBadge status={item.pipelineStatus} />
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {new Date(item.createdAt).toLocaleString('fr-FR')}
+                          {item.pipelineStatus === 'error' && item.errorMessage && (
+                            <> · {item.errorMessage.slice(0, 80)}</>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {new Date(item.createdAt).toLocaleString('fr-FR')}
-                        {item.status === 'error' && item.errorMessage && (
-                          <> · {item.errorMessage.slice(0, 80)}</>
-                        )}
-                      </div>
-                    </div>
-                    {item.status === 'success' && item.scoreMaturity !== null && (
-                      <ScorePill score={item.scoreMaturity} />
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                      {isSuccess && item.status && <StatusPill status={item.status} />}
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
@@ -97,19 +99,27 @@ export function History() {
   );
 }
 
-function StatusBadge({ status }: { status: 'pending' | 'success' | 'error' }) {
-  if (status === 'success') return <Badge variant="success">success</Badge>;
-  if (status === 'error') return <Badge variant="destructive">error</Badge>;
-  return <Badge variant="outline">pending</Badge>;
+// Badge du statut opérationnel du pipeline (analyse en cours, finie, ou en erreur).
+function PipelineStatusBadge({ status }: { status: 'pending' | 'success' | 'error' }) {
+  if (status === 'success') return <Badge variant="success">terminée</Badge>;
+  if (status === 'error') return <Badge variant="destructive">erreur</Badge>;
+  return <Badge variant="outline">en cours</Badge>;
 }
 
-function ScorePill({ score }: { score: number }) {
-  const color =
-    score >= 70 ? 'text-emerald-600' : score >= 40 ? 'text-amber-600' : 'text-muted-foreground';
+// Pill qualitatif - mêmes 4 niveaux que la page Analysis.
+const STATUS_PILL: Record<AnalysisStatus, { emoji: string; label: string; cls: string }> = {
+  too_early: { emoji: '🌱', label: 'Trop tôt', cls: 'text-muted-foreground' },
+  to_watch: { emoji: '👀', label: 'À surveiller', cls: 'text-amber-700' },
+  good_timing: { emoji: '✨', label: 'Bon timing', cls: 'text-blue-700' },
+  mature: { emoji: '🔥', label: 'Prospect mature', cls: 'text-emerald-700' },
+};
+
+function StatusPill({ status }: { status: AnalysisStatus }) {
+  const cfg = STATUS_PILL[status];
   return (
     <div className="text-right shrink-0">
-      <div className={`text-2xl font-bold ${color}`}>{score}</div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">/100</div>
+      <div className="text-2xl">{cfg.emoji}</div>
+      <div className={`text-[11px] font-medium ${cfg.cls}`}>{cfg.label}</div>
     </div>
   );
 }
