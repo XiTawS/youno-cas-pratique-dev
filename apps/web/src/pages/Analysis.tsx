@@ -138,7 +138,7 @@ export function Analysis() {
   );
 }
 
-// Mapping enum statut → libellé FR + emoji + classe Tailwind pour fond.
+// Mapping enum statut → libellé FR + emoji + classes Tailwind dark-aware.
 const STATUS_DISPLAY: Record<
   AnalysisStatus,
   { label: string; emoji: string; bg: string; text: string }
@@ -152,20 +152,20 @@ const STATUS_DISPLAY: Record<
   to_watch: {
     label: 'À surveiller',
     emoji: '👀',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
+    bg: 'bg-amber-100/70 dark:bg-amber-950/40',
+    text: 'text-amber-800 dark:text-amber-300',
   },
   good_timing: {
     label: 'Bon timing',
     emoji: '✨',
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
+    bg: 'bg-blue-100/70 dark:bg-blue-950/40',
+    text: 'text-blue-800 dark:text-blue-300',
   },
   mature: {
     label: 'Prospect mature',
     emoji: '🔥',
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
+    bg: 'bg-emerald-100/70 dark:bg-emerald-950/40',
+    text: 'text-emerald-800 dark:text-emerald-300',
   },
 };
 
@@ -283,7 +283,11 @@ function Bool({ label, value }: { label: string; value: boolean }) {
   return (
     <li className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
-      <span className={value ? 'text-emerald-600 font-medium' : 'text-muted-foreground'}>
+      <span
+        className={
+          value ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'
+        }
+      >
         {value ? 'oui' : 'non'}
       </span>
     </li>

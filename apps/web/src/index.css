@@ -2,62 +2,94 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme inline {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(0 0% 3.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(0 0% 3.9%);
-  --color-primary: hsl(0 0% 9%);
-  --color-primary-foreground: hsl(0 0% 98%);
-  --color-secondary: hsl(0 0% 96.1%);
-  --color-secondary-foreground: hsl(0 0% 9%);
-  --color-muted: hsl(0 0% 96.1%);
-  --color-muted-foreground: hsl(0 0% 45.1%);
-  --color-accent: hsl(0 0% 96.1%);
-  --color-accent-foreground: hsl(0 0% 9%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(0 0% 89.8%);
-  --color-input: hsl(0 0% 89.8%);
-  --color-ring: hsl(0 0% 3.9%);
+/* Variables CSS dual light/dark - le pattern @theme inline référence ces vars
+   au lieu d'inliner les valeurs, donc le toggle .dark fonctionne au runtime.
+   Palette inspirée du site Youno : fond crème (#f5f5ec) en clair, accent
+   terracotta sur les CTAs et l'identité. */
+:root {
+  --background: oklch(96.5% 0.012 95);
+  --foreground: oklch(20% 0.01 60);
+  --card: oklch(99% 0.005 95);
+  --card-foreground: oklch(20% 0.01 60);
+  --primary: oklch(57% 0.16 35);
+  --primary-foreground: oklch(98% 0 0);
+  --secondary: oklch(92% 0.01 95);
+  --secondary-foreground: oklch(20% 0.01 60);
+  --muted: oklch(92% 0.01 95);
+  --muted-foreground: oklch(45% 0.015 60);
+  --accent: oklch(92% 0.01 95);
+  --accent-foreground: oklch(20% 0.01 60);
+  --destructive: oklch(55% 0.18 25);
+  --destructive-foreground: oklch(98% 0 0);
+  --border: oklch(85% 0.01 95);
+  --input: oklch(85% 0.01 95);
+  --ring: oklch(57% 0.16 35);
   --radius: 0.5rem;
 }
 
 .dark {
-  --color-background: hsl(0 0% 7%);
-  --color-foreground: hsl(0 0% 98%);
-  --color-card: hsl(0 0% 9%);
-  --color-card-foreground: hsl(0 0% 98%);
-  --color-primary: hsl(0 0% 98%);
-  --color-primary-foreground: hsl(0 0% 9%);
-  --color-secondary: hsl(0 0% 14.9%);
-  --color-secondary-foreground: hsl(0 0% 98%);
-  --color-muted: hsl(0 0% 14.9%);
-  --color-muted-foreground: hsl(0 0% 63.9%);
-  --color-accent: hsl(0 0% 14.9%);
-  --color-accent-foreground: hsl(0 0% 98%);
-  --color-destructive: hsl(0 62.8% 30.6%);
-  --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(0 0% 18%);
-  --color-input: hsl(0 0% 18%);
-  --color-ring: hsl(0 0% 83.1%);
+  --background: oklch(16% 0.01 60);
+  --foreground: oklch(96% 0.005 95);
+  --card: oklch(20% 0.01 60);
+  --card-foreground: oklch(96% 0.005 95);
+  --primary: oklch(67% 0.16 35);
+  --primary-foreground: oklch(16% 0.01 60);
+  --secondary: oklch(24% 0.01 60);
+  --secondary-foreground: oklch(96% 0.005 95);
+  --muted: oklch(24% 0.01 60);
+  --muted-foreground: oklch(65% 0.015 60);
+  --accent: oklch(24% 0.01 60);
+  --accent-foreground: oklch(96% 0.005 95);
+  --destructive: oklch(60% 0.18 25);
+  --destructive-foreground: oklch(96% 0.005 95);
+  --border: oklch(28% 0.01 60);
+  --input: oklch(28% 0.01 60);
+  --ring: oklch(67% 0.16 35);
+}
+
+/* Tailwind 4 : @theme inline avec valeurs en var() = utilities qui switchent
+   bien selon .dark (vs valeurs hardcodées qui ne switchaient pas). */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Font stack : Inter pour le body, fallbacks système */
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
 }
 
 @layer base {
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      'Inter',
-      sans-serif;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Anim utilitaires Tailwind 4 (data-[state=open]:animate-in etc.) */
+  /* Liens et focus globaux cohérents avec l'accent terracotta */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Animations utilitaires Tailwind 4 */
   @keyframes fade-in-0 {
     from {
       opacity: 0;

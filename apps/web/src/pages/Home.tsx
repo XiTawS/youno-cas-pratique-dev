@@ -150,9 +150,9 @@ interface StatCardProps {
 
 const TONE_CLASSES: Record<StatCardProps['tone'], string> = {
   default: 'text-muted-foreground',
-  emerald: 'text-emerald-600',
-  blue: 'text-blue-600',
-  amber: 'text-amber-600',
+  emerald: 'text-emerald-700 dark:text-emerald-400',
+  blue: 'text-blue-700 dark:text-blue-400',
+  amber: 'text-amber-700 dark:text-amber-400',
 };
 
 function StatCard({ label, value, icon, tone }: StatCardProps) {
@@ -179,9 +179,9 @@ function PipelineBadge({ status }: { status: 'pending' | 'success' | 'error' }) 
 
 const STATUS_ICON: Record<AnalysisStatus, ReactNode> = {
   too_early: <Sprout className="h-5 w-5 text-muted-foreground" />,
-  to_watch: <Eye className="h-5 w-5 text-amber-600" />,
-  good_timing: <Sparkles className="h-5 w-5 text-blue-600" />,
-  mature: <Flame className="h-5 w-5 text-emerald-600" />,
+  to_watch: <Eye className="h-5 w-5 text-amber-700 dark:text-amber-400" />,
+  good_timing: <Sparkles className="h-5 w-5 text-blue-700 dark:text-blue-400" />,
+  mature: <Flame className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />,
 };
 
 function StatusEmoji({ status }: { status: AnalysisStatus }) {

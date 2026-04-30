@@ -299,17 +299,17 @@ const STATUS_DISPLAY: Record<AnalysisStatus, { label: string; icon: ReactNode; c
   to_watch: {
     label: 'À surveiller',
     icon: <Eye className="h-3.5 w-3.5" />,
-    cls: 'text-amber-700',
+    cls: 'text-amber-700 dark:text-amber-400',
   },
   good_timing: {
     label: 'Bon timing',
     icon: <Sparkles className="h-3.5 w-3.5" />,
-    cls: 'text-blue-700',
+    cls: 'text-blue-700 dark:text-blue-400',
   },
   mature: {
     label: 'Prospect mature',
     icon: <Flame className="h-3.5 w-3.5" />,
-    cls: 'text-emerald-700',
+    cls: 'text-emerald-700 dark:text-emerald-400',
   },
 };
 
