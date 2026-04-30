@@ -16,6 +16,7 @@
     "@clerk/fastify": "^2.4.0",
     "@fastify/cors": "^10.0.1",
     "@mendable/firecrawl-js": "^4.20.1",
+    "simple-wappalyzer": "^1.1.97",
     "@youno/shared": "workspace:*",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.36.4",
