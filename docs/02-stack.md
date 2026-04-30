@@ -264,7 +264,20 @@ Free tier permanent (750 h / mois), Render Blueprint (`render.yaml`) pour Infras
 
 - ESLint flat config (`eslint.config.mjs`), preset `@typescript-eslint/recommended-strict`. Configuré par app (front et API ont des règles différentes), pas au niveau racine.
 - Prettier au niveau racine (`.prettierrc.json` + `.prettierignore`), `prettier --check` en CI via `pnpm format:check`. Config : `singleQuote`, `trailingComma: all`, `printWidth: 100`, `tabWidth: 2`, `endOfLine: lf`. Toute la doc (`.md`) est passée par Prettier — les tables markdown sont alignées automatiquement, ne pas chercher à formater à la main.
-- Hooks Git via `simple-git-hooks` ou `lefthook` (à choisir au moment du dev).
+- Hooks Git : non mis en place dans ce scope (CI suffit pour bloquer un push qui ne passe pas `format:check`/`typecheck`).
+
+### Tests
+
+Vitest pour la logique pure, voir `apps/api/src/services/*.test.ts`, `apps/web/src/lib/*.test.ts`, `packages/shared/src/schemas/*.test.ts`. Couvre :
+
+- `computeStatus()` (déterministe, 4 niveaux, edge cases booléens)
+- `pickPagesToScrape()` (sélection de pages à scraper, dédup, host www-aware)
+- `analysisToMarkdown()` (formatage de l'export, mappings FR, omission champs nullables)
+- `SignalsSchema` + `AnalysisStatusSchema` (validation Zod, bornes max, enums)
+
+41 tests au total. Lancement via `pnpm test` (récursif) ou par workspace via `pnpm --filter @apps/api test`.
+
+Pas de tests d'intégration sur les services externes (Firecrawl, OpenRouter, Clerk, DB) ni de tests E2E Playwright — ces couches demandent des fixtures lourdes ou des mocks complexes, hors scope MVP. Talking point de restitution : "les premiers ajouts si je continuais seraient les tests d'intégration sur `/api/analyze` avec Firecrawl/OpenRouter mockés, puis un Playwright sur le golden path login → analyse → détail".
 
 ### Imports
 

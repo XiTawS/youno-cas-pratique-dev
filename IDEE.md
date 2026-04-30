@@ -34,7 +34,7 @@ Pour ce cas pratique, le succès est défini sur l'horizon de la restitution ave
 
 Ce que ce projet **refuse explicitement de faire**, pour rester dans le scope 5-8h et garder un MVP qui tourne :
 
-- **Pas de tests automatisés**. Le scope ne le permet pas. Mention explicite dans le README comme "ce que j'améliorerais avec plus de temps".
+- **Tests unitaires ciblés sur la logique pure**. 41 tests Vitest couvrant : `computeStatus()` (déterministe), `pickPagesToScrape()` (sélection URLs), `analysisToMarkdown()` (export), `SignalsSchema` / `AnalysisStatusSchema` (validation Zod). Pas de tests d'intégration sur les services externes (Firecrawl, OpenRouter, Clerk, DB) ni de tests E2E Playwright — ces couches demandent des fixtures/mocks lourds, hors scope MVP.
 - **Pas de mobile-first**. UI desktop suffit pour la démo et la restitution. Responsive correct mais pas optimisé mobile.
 - **Pas d'auth complexe** (SSO entreprise, RBAC, multi-tenant). Clerk email + password (comptes créés par admin) + allowlist couvrent le besoin.
 - **Pas de scraping multi-domaine ni de crawl récursif**. Une URL = une boîte = 3-5 pages clés analysées.

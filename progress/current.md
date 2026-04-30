@@ -12,9 +12,17 @@ Phase **Polish & livrables** (J5 de la roadmap). Brief reçu le 2026-04-27, éch
 
 ## En cours
 
-Démarrage J5 — polish & livrables. Push de la refonte scoring sur prod en attente, puis README final + Loom + tag v1.0.0 + email à Kaio.
+J5 polish en cours :
 
-**⚠️ Action utilisateur avant le push refonte** : confirmer que les envs Render sont OK (`FIRECRAWL_API_KEY`, `OPENROUTER_API_KEY`, `LLM_MODEL`). Aucune nouvelle env ajoutée par la refonte.
+- [x] Refonte scoring (ADR-013) : statut qualitatif + recommandation Claude
+- [x] Refonte UI dashboard (sidebar shell + stats + data table + dark mode)
+- [x] Login custom one-page (username + password sur même écran)
+- [x] Export Markdown + PDF (impression navigateur)
+- [x] Tests unitaires Vitest (41 tests sur la logique pure)
+- [x] Audit doc (README/IDEE/02-stack alignés sur l'état réel du projet)
+- [ ] Loom principal (5-8 min) + Loom side project bonus
+- [ ] Tag `v1.0.0` sur GitHub
+- [ ] Email à Kaio
 
 ## Prochaines actions
 

@@ -1,22 +1,11 @@
 import Firecrawl from '@mendable/firecrawl-js';
 import type { ScrapedPage } from '@youno/shared/schemas/analyze';
 import { env } from '../lib/env.js';
+import { pickPagesToScrape } from './scraping-utils.js';
 
-// Stratégie de sélection des pages à scraper.
-// Map peut retourner des centaines d'URLs (sitemap entier) ; on en garde au
-// max 5 pour économiser les credits Firecrawl (1 credit par /scrape).
-// On priorise les pages "GTM-révélatrices" : pricing, customers, about,
-// careers, /. Le reste est rempli par les premiers résultats du map.
-const PAGE_PRIORITY_PATTERNS = [
-  /\/pricing\/?$/i,
-  /\/customers\/?$/i,
-  /\/about\/?$/i,
-  /\/careers\/?$/i,
-  /\/jobs\/?$/i,
-  /\/products?\/?$/i,
-];
+// Re-export pour compat avec les imports existants.
+export { pickPagesToScrape };
 
-const MAX_PAGES_TO_SCRAPE = 5;
 const MAP_LIMIT = 30;
 
 const client = new Firecrawl({ apiKey: env.FIRECRAWL_API_KEY });
@@ -31,62 +20,6 @@ export class ScrapingError extends Error {
     super(message);
     this.statusCode = statusCode;
   }
-}
-
-// Compare deux hosts en ignorant le préfixe www. - Firecrawl normalise souvent
-// "https://www.cal.com" → "cal.com" dans les résultats /map.
-function hostMatches(a: string, b: string): boolean {
-  const strip = (h: string) => h.replace(/^www\./i, '').toLowerCase();
-  return strip(a) === strip(b);
-}
-
-// Sélectionne 3-5 URLs pertinentes parmi celles découvertes par /map.
-// Algo : 1) home (la plus courte URL valide du domaine), 2) pages prioritaires
-// par pattern, 3) compléter avec les premiers résultats jusqu'à MAX_PAGES_TO_SCRAPE.
-export function pickPagesToScrape(rootUrl: string, mapLinks: string[]): string[] {
-  const rootHost = new URL(rootUrl).host;
-  const sameHost = mapLinks.filter((u) => {
-    try {
-      return hostMatches(new URL(u).host, rootHost);
-    } catch {
-      return false;
-    }
-  });
-
-  const picked = new Set<string>();
-
-  // 1. Home : la plus courte URL avec path "/" ou vide
-  const home =
-    sameHost.find((u) => {
-      try {
-        const p = new URL(u).pathname;
-        return p === '/' || p === '';
-      } catch {
-        return false;
-      }
-    }) ?? sameHost[0];
-  if (home) picked.add(home);
-
-  // 2. Pages prioritaires par pattern
-  for (const pattern of PAGE_PRIORITY_PATTERNS) {
-    if (picked.size >= MAX_PAGES_TO_SCRAPE) break;
-    const match = sameHost.find((u) => {
-      try {
-        return pattern.test(new URL(u).pathname);
-      } catch {
-        return false;
-      }
-    });
-    if (match) picked.add(match);
-  }
-
-  // 3. Compléter avec les premiers résultats si encore de la place
-  for (const u of sameHost) {
-    if (picked.size >= MAX_PAGES_TO_SCRAPE) break;
-    picked.add(u);
-  }
-
-  return Array.from(picked);
 }
 
 interface ScrapeResult {
