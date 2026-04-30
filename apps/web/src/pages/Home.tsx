@@ -1,98 +1,94 @@
 import { SignOutButton, useAuth } from '@clerk/clerk-react';
-import { useQuery } from '@tanstack/react-query';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { analyzeRequestSchema, type AnalyzeRequest } from '@youno/shared/schemas/analyze';
+import { Loader2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { fetchHealth, fetchMe } from '@/lib/api';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { fetchAnalyze } from '@/lib/api';
 
-// Page d'accueil minimale J1 : vérifie que l'API répond, l'auth est OK,
-// et l'allowlist accepte l'utilisateur. Le pipeline d'analyse arrive en J2.
+// Page d'accueil J4 - input URL principal + bouton Analyser.
+// Le hook auth global API protège déjà /api/analyze, RequireAuth garantit
+// qu'on est ici loggé donc useAuth().getToken() retourne un token valide.
 export function Home() {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
+  const navigate = useNavigate();
 
-  const health = useQuery({
-    queryKey: ['health'],
-    queryFn: fetchHealth,
-    retry: 1,
+  const form = useForm<AnalyzeRequest>({
+    resolver: zodResolver(analyzeRequestSchema),
+    defaultValues: { url: '' },
   });
 
-  const me = useQuery({
-    queryKey: ['me'],
-    queryFn: async () => {
+  const analyze = useMutation({
+    mutationFn: async (values: AnalyzeRequest) => {
       const token = await getToken();
-      if (!token) throw new Error('Pas de token de session disponible');
-      return fetchMe(token);
+      if (!token) throw new Error('Pas de session active');
+      return fetchAnalyze(token, values.url);
     },
-    retry: 1,
+    onSuccess: (data) => {
+      toast.success(`Analyse de ${data.domain} terminée${data.fromCache ? ' (cache)' : ''}`);
+      navigate(`/analysis/${data.id}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
   });
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Konsole</h1>
+    <div className="min-h-screen flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-xl space-y-8">
+        <header className="space-y-2 text-center">
+          <h1 className="text-4xl font-semibold tracking-tight">Konsole</h1>
           <p className="text-sm text-muted-foreground">
-            Cas pratique Youno · bootstrap J1. Le pipeline d'analyse d'URL arrive en J2.
+            Analyse GTM d'une URL en moins de 30 secondes. Cas pratique Youno.
           </p>
         </header>
 
-        <section className="rounded-lg border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">État de l'API</span>
-            {health.data && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                {health.data.status}
-              </span>
-            )}
-            {health.isError && (
-              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                indisponible
-              </span>
-            )}
-            {health.isLoading && (
-              <span className="text-xs text-muted-foreground">vérification…</span>
+        <form
+          onSubmit={form.handleSubmit((values) => analyze.mutate(values))}
+          className="space-y-3"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="url">URL du site à analyser</Label>
+            <Input
+              id="url"
+              type="url"
+              placeholder="https://stripe.com"
+              autoComplete="url"
+              autoFocus
+              disabled={analyze.isPending}
+              {...form.register('url')}
+            />
+            {form.formState.errors.url && (
+              <p className="text-xs text-destructive">{form.formState.errors.url.message}</p>
             )}
           </div>
-          {health.data && (
-            <dl className="text-sm space-y-1 text-muted-foreground">
-              <div className="flex justify-between">
-                <dt>uptime</dt>
-                <dd className="font-mono">{health.data.uptime.toFixed(1)}s</dd>
-              </div>
-            </dl>
-          )}
-          {health.isError && (
-            <p className="text-xs text-destructive">{(health.error as Error).message}</p>
-          )}
-        </section>
+          <Button type="submit" className="w-full" disabled={analyze.isPending}>
+            {analyze.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyse en cours… (10-30s)
+              </>
+            ) : (
+              'Analyser'
+            )}
+          </Button>
+        </form>
 
-        <section className="rounded-lg border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Session authentifiée</span>
-            {me.data && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                allowlist
-              </span>
-            )}
-          </div>
-          {me.isLoading && <p className="text-xs text-muted-foreground">vérification du token…</p>}
-          {me.data && (
-            <dl className="text-sm space-y-1 text-muted-foreground">
-              <div className="flex justify-between gap-2">
-                <dt>email</dt>
-                <dd className="font-mono text-xs truncate">{me.data.email}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt>userId</dt>
-                <dd className="font-mono text-xs truncate">{me.data.userId}</dd>
-              </div>
-            </dl>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <Link to="/history" className="hover:underline">
+            ← Voir mon historique
+          </Link>
+          {isSignedIn && (
+            <SignOutButton>
+              <button className="hover:underline">Déconnexion</button>
+            </SignOutButton>
           )}
-          {me.isError && <p className="text-xs text-destructive">{(me.error as Error).message}</p>}
-          <SignOutButton>
-            <Button size="sm" variant="outline">
-              Se déconnecter
-            </Button>
-          </SignOutButton>
-        </section>
+        </div>
       </div>
     </div>
   );
