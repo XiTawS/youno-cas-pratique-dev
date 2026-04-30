@@ -2,24 +2,26 @@
 
 ## État (au 2026-04-30)
 
-Phase **Bootstrap** (J1 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. Documentation initiale rédigée, stack figée, choix techniques validés. Le code n'est pas encore initialisé.
+Phase **Bootstrap** (J1 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. J1 est en cours : monorepo pnpm fonctionnel en local, API Fastify avec `/api/health`, front Vite + React 19 + Tailwind 4 + shadcn opérationnel, page Home qui ping l'API avec succès. Reste : Clerk (étape 5), Neon + Drizzle (étape 6), premier deploy Vercel + Render (étape 7).
 
 ## En cours
 
-Initialisation du projet. Toute la doc cadre est posée (`IDEE.md`, `docs/01-architecture.md`, `docs/02-stack.md`, `docs/99-decisions.md`, `README.md`, `CLAUDE.md`). Prochaine étape : bootstrap technique (monorepo pnpm + premier deploy stub).
+Étape 5 J1 — intégration Clerk. En attente côté utilisateur pour créer l'app Clerk (ou fournir les clés existantes) et choisir les emails de l'allowlist avant d'ajouter les envs `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `AUTH_ALLOWED_EMAILS`.
 
 ## Prochaines actions
 
 ### J1 — Bootstrap & deploy stub
 
-- [ ] `pnpm init` à la racine, configurer `pnpm-workspace.yaml`
-- [ ] Init `apps/web` avec Vite + React + TS + Tailwind + shadcn/ui
-- [ ] Init `apps/api` avec Fastify + TS + `fastify-type-provider-zod`
-- [ ] Init `packages/shared` avec un schema Zod minimal pour valider la structure
+- [x] `pnpm init` à la racine, configurer `pnpm-workspace.yaml`
+- [x] Fondations repo (`.gitignore`, `.nvmrc`, Prettier, `tsconfig.base.json`, `.env.example`)
+- [x] Init `packages/shared` avec un schema Zod `healthResponseSchema`
+- [x] Init `apps/api` avec Fastify + TS + `fastify-type-provider-zod` + CORS + Pino
+- [x] Endpoint `GET /api/health` côté API
+- [x] Init `apps/web` avec Vite + React 19 + TS + Tailwind 4 + shadcn (composant Button)
+- [x] React Router (3 routes) + TanStack Query + page Home qui ping `/api/health`
 - [ ] Créer comptes (si pas déjà faits) : Clerk, Neon, Firecrawl
 - [ ] Setup Clerk (front + back), tester login magic link en local
 - [ ] Setup Neon Postgres + Drizzle, première migration (table `users` vide)
-- [ ] Endpoint `GET /api/health` côté API, page d'accueil minimale côté front
 - [ ] Premier deploy : Vercel (front) + Render (API)
 - [ ] Vérifier CORS + flow login bout-en-bout sur le déployé
 
