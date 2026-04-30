@@ -292,3 +292,33 @@ Drizzle plutôt que Prisma : TS-first sans génération de client, synergie avec
 - Talking point en restitution : _"j'ai gardé un score simple mais auditable dans le scope MVP. La version multi-dimensionnelle (3 scores + tags + reco textuelle) est documentée comme évolution v2 dans IDEE.md."_
 
 **Conséquences acceptées** : moins "wow" en démo qu'un dashboard multi-scores. Mitigé par la qualité de l'extraction et du détail par signal.
+
+---
+
+## ADR-012 — Auth Clerk : bascule de magic link self-service vers email + password admin-managed — 2026-04-30
+
+**Status** : accepted (révise ADR-006 sur le mode d'authentification, garde le choix de Clerk)
+
+**Contexte** : ADR-006 retenait Clerk avec magic link en méthode primaire. À l'implémentation, deux frictions sont apparues :
+
+- Le flow Clerk standard distingue strictement `<SignIn>` (users existants) de `<SignUp>` (nouveaux). Pour un MVP avec une allowlist de 4 emails connus, le passage par `/sign-up` à la 1ʳᵉ visite de chaque user était une étape inutile.
+- Volonté d'éviter la friction "compte à créer" pour Kaio + Christian + Martin, sans toucher au composant Clerk natif (un flow custom passwordless aurait demandé ~50 lignes de hooks et de UI).
+
+**Décision** : bascule en mode **admin-managed** :
+
+- Désactivation de `email_link` et `email_code` côté Clerk dashboard. Méthode primaire = `password`.
+- Comptes créés par admin (Léo) via API Clerk (`POST /v1/users` avec password généré). Allowlist remplie en parallèle (`POST /v1/allowlist_identifiers`).
+- Credentials transmis out-of-band (Slack, mail séparé) aux users.
+- Front : suppression de la page `/sign-up`, le composant `<SignIn />` n'affiche plus le lien "Don't have an account?" (`appearance.elements.footer: { display: 'none' }`).
+
+**Pourquoi pas un flow custom passwordless** (1 champ email → magic link auto sign-in OR sign-up) :
+
+- ~50 lignes de code à écrire et maintenir, vs 0 ligne pour le mode admin-managed.
+- Perte de la UI shadcn-like polish de Clerk.
+- Le scope MVP n'a pas le temps pour ça, et ce n'est pas un sujet produit Konsole.
+
+**Conséquences acceptées** :
+
+- L'admin (Léo) doit créer chaque compte manuellement à l'avance (mais l'API Clerk rend ça scriptable en 30 secondes).
+- Les users doivent gérer un password (mitigé : password manager moderne, ou reset trivial via dashboard Clerk).
+- Pas de "magic link" comme talking point en restitution — remplacé par "j'ai assumé une UX simple cohérente avec un cas pratique 4 utilisateurs ; le flow magic link aurait été un coût de scope sans valeur produit ici".

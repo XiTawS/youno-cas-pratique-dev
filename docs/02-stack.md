@@ -199,24 +199,30 @@ Même si tool use force la conformité, validation Zod redondante côté API en 
 **Pourquoi Clerk** :
 
 - Setup en 30-45 min : SDK React + plugin Fastify, composants `<SignIn />` prêts
-- Magic link en méthode primaire + email/password en fallback (besoin de Léo)
+- Email + password gérés nativement, pas de self-service sign-up à coder
 - Allowlist email gérée dans le dashboard sans redéploiement
+- Création des users + reset password via API Clerk (scriptable depuis Bash)
 - Free tier 10k MAU largement suffisant
 - Plugin Fastify officiel (`@clerk/fastify`)
 
 ### Configuration
 
+Mode **admin-managed** : pas de sign-up self-service, l'admin crée chaque compte (email + password prédéfini) via le dashboard ou l'API Clerk, et transmet les credentials out-of-band (Slack, mail séparé). Pas de magic link, pas de vérification email — les comptes créés par API sont déjà "verified" à la création.
+
 | Réglage Clerk           | Valeur                                                    |
 | ----------------------- | --------------------------------------------------------- |
-| Email address           | Required                                                  |
-| Email verification link | Activé (= magic link)                                     |
-| Password                | Activé (fallback)                                         |
+| Email address           | Required + Used for sign-in                               |
+| Password                | Activé (méthode primaire)                                 |
+| Email verification link | Désactivé                                                 |
+| Email verification code | Désactivé                                                 |
 | OAuth providers         | Désactivés                                                |
 | Sign-up modes           | Restricted (allowlist)                                    |
 | Allowlist               | Voir env `AUTH_ALLOWED_EMAILS` côté API + dashboard Clerk |
 | Session lifetime        | 7 jours                                                   |
 
 Double vérification applicative côté API : après validation du JWT Clerk, on vérifie que `user.email ∈ AUTH_ALLOWED_EMAILS`. Belt + suspenders.
+
+Voir ADR-012 pour le contexte du choix admin-managed (vs self-service magic link initialement prévu).
 
 ## Hébergement
 

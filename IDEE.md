@@ -36,7 +36,7 @@ Ce que ce projet **refuse explicitement de faire**, pour rester dans le scope 5-
 
 - **Pas de tests automatisés**. Le scope ne le permet pas. Mention explicite dans le README comme "ce que j'améliorerais avec plus de temps".
 - **Pas de mobile-first**. UI desktop suffit pour la démo et la restitution. Responsive correct mais pas optimisé mobile.
-- **Pas d'auth complexe** (SSO entreprise, RBAC, multi-tenant). Clerk magic link + email allowlist couvrent le besoin.
+- **Pas d'auth complexe** (SSO entreprise, RBAC, multi-tenant). Clerk email + password (comptes créés par admin) + allowlist couvrent le besoin.
 - **Pas de scraping multi-domaine ni de crawl récursif**. Une URL = une boîte = 3-5 pages clés analysées.
 - **Pas de scoring paramétrable par ICP utilisateur**. Le score "Maturité GTM" est calculé avec une formule fixe ; la version paramétrable est une évolution v2 documentée.
 - **Pas d'export CSV / PDF / API publique**. Stretch goal seulement si temps restant en fin de scope.

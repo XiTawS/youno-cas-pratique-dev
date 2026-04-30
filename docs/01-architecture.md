@@ -22,7 +22,7 @@ Postgres serverless hébergé. Stocke deux tables principales : `users` (synchro
 
 ### Clerk — Authentification
 
-Service d'auth managé. Magic link en méthode primaire, email/password en fallback. Allowlist email configurée côté Clerk dashboard ; double vérification applicative côté API via `AUTH_ALLOWED_EMAILS`.
+Service d'auth managé. Email + password uniquement, comptes créés par admin via le dashboard Clerk (pas de self-service sign-up). Password transmis aux users out-of-band (Slack, mail séparé). Allowlist email configurée côté Clerk dashboard ; double vérification applicative côté API via `AUTH_ALLOWED_EMAILS`.
 
 ### Firecrawl — Scraping
 

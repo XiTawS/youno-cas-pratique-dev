@@ -8,7 +8,7 @@ L'app prend en entrée une URL d'entreprise et restitue une analyse GTM structur
 
 - **Front** : React + Vite + Tailwind + shadcn/ui + TanStack Query + React Router + React Hook Form + Zod
 - **API** : Fastify + TypeScript + `fastify-type-provider-zod`
-- **Auth** : Clerk (magic link + password fallback + allowlist email)
+- **Auth** : Clerk (email + password, comptes créés par admin, allowlist email)
 - **DB** : Neon Postgres + Drizzle ORM
 - **Scraping** : Firecrawl (`@mendable/firecrawl-js`) + Wappalyzer en lib
 - **LLM** : Claude Sonnet 4.6 via `@anthropic-ai/claude-agent-sdk`

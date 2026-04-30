@@ -20,7 +20,7 @@ Phase **Bootstrap** (J1 de la roadmap). Brief reçu le 2026-04-27, échéance li
 - [x] Init `apps/web` avec Vite + React 19 + TS + Tailwind 4 + shadcn (composant Button)
 - [x] React Router (3 routes) + TanStack Query + page Home qui ping `/api/health`
 - [ ] Créer comptes (si pas déjà faits) : Clerk, Neon, Firecrawl
-- [ ] Setup Clerk (front + back), tester login magic link en local
+- [ ] Setup Clerk (front + back), tester login email + password en local
 - [ ] Setup Neon Postgres + Drizzle, première migration (table `users` vide)
 - [ ] Premier deploy : Vercel (front) + Render (API)
 - [ ] Vérifier CORS + flow login bout-en-bout sur le déployé
