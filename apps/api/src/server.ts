@@ -1,3 +1,4 @@
+import { clerkPlugin } from '@clerk/fastify';
 import { fastify, type FastifyError } from 'fastify';
 import {
   serializerCompiler,
@@ -5,8 +6,10 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import { env } from './lib/env.js';
+import { registerAuthHook } from './plugins/auth.js';
 import { registerCorsPlugin } from './plugins/cors.js';
 import { healthRoute } from './routes/health.js';
+import { meRoute } from './routes/me.js';
 
 async function main(): Promise<void> {
   const app = fastify({
@@ -25,11 +28,20 @@ async function main(): Promise<void> {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  // Plugins
+  // Plugins - ordre important :
+  // 1. CORS d'abord (préflight OPTIONS doit passer avant tout)
+  // 2. Clerk au scope racine pour que getAuth fonctionne dans les routes
+  // 3. Hook auth qui s'appuie sur les décorations Clerk
   await registerCorsPlugin(app);
+  await app.register(clerkPlugin, {
+    secretKey: env.CLERK_SECRET_KEY,
+    publishableKey: env.CLERK_PUBLISHABLE_KEY,
+  });
+  registerAuthHook(app);
 
   // Routes - prefix /api appliqué globalement aux routes métier
   await app.register(healthRoute, { prefix: '/api' });
+  await app.register(meRoute, { prefix: '/api' });
 
   // Error handler global - format de réponse uniforme
   app.setErrorHandler((err: FastifyError, req, reply) => {

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.16.1",
     "@radix-ui/react-slot": "^1.1.1",
     "@shared": "workspace:*",
     "@tanstack/react-query": "^5.59.20",

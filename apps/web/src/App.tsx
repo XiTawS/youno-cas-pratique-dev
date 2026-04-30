@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { RequireAuth } from '@/components/RequireAuth';
 import { Analysis } from '@/pages/Analysis';
 import { Home } from '@/pages/Home';
 import { SignIn } from '@/pages/SignIn';
@@ -20,9 +21,24 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/sign-in" element={<SignIn />} />
-          <Route path="/analysis/:id" element={<Analysis />} />
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <Home />
+              </RequireAuth>
+            }
+          />
+          {/* Path Clerk avec wildcard pour gérer les sous-routes du flow (verify, factor-one, etc.) */}
+          <Route path="/sign-in/*" element={<SignIn />} />
+          <Route
+            path="/analysis/:id"
+            element={
+              <RequireAuth>
+                <Analysis />
+              </RequireAuth>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
