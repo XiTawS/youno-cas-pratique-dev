@@ -6,3 +6,6 @@ build
 .turbo
 coverage
 pnpm-lock.yaml
+
+# Artefacts générés par drizzle-kit (ne pas reformater, drizzle régénère à chaque migration)
+apps/api/drizzle/meta/
