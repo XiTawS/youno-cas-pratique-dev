@@ -1,10 +1,12 @@
 import { config } from 'dotenv';
 import { z } from 'zod';
 
-// Charge le .env unique à la racine du monorepo (un seul fichier pour API + front).
-// En prod (Render/Vercel), les envs sont injectées par la plateforme et le path
-// inexistant échoue silencieusement - process.env reste autoritatif.
+// Charge les .env de la racine du monorepo (un seul jeu de fichiers pour API + front).
+// Convention Vite : .env (committable) puis .env.local (gitignored, secrets) qui override.
+// En prod (Render/Vercel), les envs sont injectées par la plateforme et les chemins
+// inexistants échouent silencieusement - process.env reste autoritatif.
 config({ path: '../../.env' });
+config({ path: '../../.env.local', override: true });
 
 // Validation Zod centralisée des variables d'environnement au démarrage.
 // Le serveur refuse de démarrer si une var requise manque (fail fast).

@@ -33,9 +33,9 @@ git clone <repo-url>
 cd youno-cas-pratique-dev
 pnpm install
 
-# Configurer les variables d'environnement
-cp .env.example .env
-# Éditer .env avec les vraies valeurs (voir .env.example pour la liste)
+# Configurer les variables d'environnement (gitignored)
+cp .env.example .env.local
+# Éditer .env.local avec les vraies valeurs (voir .env.example pour la liste)
 
 # Setup DB (migrations Drizzle)
 pnpm --filter @apps/api db:migrate
