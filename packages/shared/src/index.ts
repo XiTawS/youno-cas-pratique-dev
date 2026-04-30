@@ -2,3 +2,4 @@
 export * from './schemas/analyze';
 export * from './schemas/health';
 export * from './schemas/me';
+export * from './schemas/signals';
