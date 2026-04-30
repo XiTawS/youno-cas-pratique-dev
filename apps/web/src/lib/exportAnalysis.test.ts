@@ -16,6 +16,7 @@ const baseAnalysis: AnalyzeResponse = {
       name: 'Acme Corp',
       description: 'Plateforme SaaS de gestion de projet pour équipes produit.',
       sector: 'B2B SaaS',
+      approximateSize: '51-200',
     },
     salesMotion: {
       pricingPublic: true,
@@ -53,11 +54,24 @@ describe('analysisToMarkdown', () => {
     expect(md).toContain('> Plateforme SaaS de gestion de projet');
   });
 
-  it('liste les tags secteur + segment + géographie', () => {
+  it('liste secteur + taille + segment + géographie en en-tête', () => {
     const md = analysisToMarkdown(baseAnalysis);
     expect(md).toContain('B2B SaaS');
+    expect(md).toContain('51-200 employés');
     expect(md).toContain('Mid-market');
     expect(md).toContain('Europe');
+  });
+
+  it('omet la taille si approximateSize=unknown', () => {
+    const md = analysisToMarkdown({
+      ...baseAnalysis,
+      signals: {
+        ...baseAnalysis.signals,
+        company: { ...baseAnalysis.signals.company, approximateSize: 'unknown' },
+      },
+    });
+    expect(md).not.toContain('Taille');
+    expect(md).not.toContain('employés');
   });
 
   it('inclut une section Recommandation avec le texte LLM', () => {

@@ -28,12 +28,16 @@ export function analysisToMarkdown(data: AnalyzeResponse): string {
   lines.push(`# ${signals.company.name}`, '');
   lines.push(`> ${signals.company.description}`, '');
 
-  const tags: string[] = [];
-  if (signals.company.sector) tags.push(signals.company.sector);
-  tags.push(signals.icp.segment);
-  if (signals.icp.geography) tags.push(signals.icp.geography);
-  lines.push(`**Tags** : ${tags.join(' · ')}`, '');
-
+  if (signals.company.sector) {
+    lines.push(`- **Secteur** : ${signals.company.sector}`);
+  }
+  if (signals.company.approximateSize !== 'unknown') {
+    lines.push(`- **Taille** : ${signals.company.approximateSize} employés`);
+  }
+  lines.push(`- **Segment** : ${signals.icp.segment}`);
+  if (signals.icp.geography) {
+    lines.push(`- **Géographie** : ${signals.icp.geography}`);
+  }
   lines.push(`- **URL analysée** : ${data.url}`);
   lines.push(`- **Date d'analyse** : ${date}`);
   lines.push(`- **Statut** : ${STATUS_LABEL[data.status]}`, '');

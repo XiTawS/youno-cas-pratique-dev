@@ -9,7 +9,7 @@ function makeSignals(
   salesMotion?: Partial<Signals['salesMotion']>,
 ): Signals {
   return {
-    company: { name: 'Acme', description: 'Test', sector: null },
+    company: { name: 'Acme', description: 'Test', sector: null, approximateSize: 'unknown' },
     salesMotion: {
       pricingPublic: false,
       primaryCta: 'demo',

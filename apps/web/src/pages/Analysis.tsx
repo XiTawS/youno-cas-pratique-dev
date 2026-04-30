@@ -102,7 +102,12 @@ export function Analysis() {
             {signals.company.description}
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
-            {signals.company.sector && <Badge variant="secondary">{signals.company.sector}</Badge>}
+            {signals.company.sector && (
+              <Badge variant="secondary">📂 {signals.company.sector}</Badge>
+            )}
+            {signals.company.approximateSize !== 'unknown' && (
+              <Badge variant="secondary">👥 {signals.company.approximateSize} employés</Badge>
+            )}
             <Badge variant="outline">{signals.icp.segment}</Badge>
             {signals.icp.geography && <Badge variant="outline">{signals.icp.geography}</Badge>}
           </div>

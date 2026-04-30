@@ -18,7 +18,14 @@ const companySchema = z.object({
   sector: z
     .string()
     .nullable()
-    .describe('Secteur d\'activité court (ex. "fintech", "MarTech B2B"). null si pas clair.'),
+    .describe(
+      'Secteur d\'activité court (ex. "fintech", "MarTech B2B", "devtools", "e-commerce"). null si pas clair.',
+    ),
+  approximateSize: z
+    .enum(['1-10', '11-50', '51-200', '201-1000', '1000+', 'unknown'])
+    .describe(
+      "Taille approximative en nombre d'employés. Estime depuis les signaux disponibles : pages /careers (volume de postes), pied de page (mention équipe), about us, série de financement, logos clients. Si totalement non déterminable, mets 'unknown'. Tranche basse plutôt qu'inventer.",
+    ),
 });
 
 // Bloc "comment ils vendent" - sales motion.

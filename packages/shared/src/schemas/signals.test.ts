@@ -6,6 +6,7 @@ const validSignals = {
     name: 'Acme',
     description: 'Test',
     sector: null,
+    approximateSize: '11-50' as const,
   },
   salesMotion: {
     pricingPublic: true,
@@ -116,6 +117,24 @@ describe('SignalsSchema', () => {
     const result = SignalsSchema.safeParse({
       ...validSignals,
       recommendation: tooLong,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepte les 6 valeurs valides pour approximateSize', () => {
+    for (const size of ['1-10', '11-50', '51-200', '201-1000', '1000+', 'unknown'] as const) {
+      const result = SignalsSchema.safeParse({
+        ...validSignals,
+        company: { ...validSignals.company, approximateSize: size },
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it('rejette une taille hors enum', () => {
+    const result = SignalsSchema.safeParse({
+      ...validSignals,
+      company: { ...validSignals.company, approximateSize: 'a-lot' },
     });
     expect(result.success).toBe(false);
   });
