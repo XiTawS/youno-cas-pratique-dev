@@ -200,33 +200,49 @@ Drizzle plutôt que Prisma : TS-first sans génération de client, synergie avec
 
 ---
 
-## ADR-009 — Extraction LLM : Claude Sonnet 4.6, 1 appel + tool use + temperature 0 — 2026-04-30
+## ADR-009 — Extraction LLM : Claude Sonnet via OpenRouter, 1 appel + tool use + temperature 0 — 2026-04-30 (révisé)
 
-**Status** : accepted
+**Status** : accepted (révise la version initiale qui retenait `@anthropic-ai/claude-agent-sdk`)
 
-**Contexte** : choix de la stratégie de prompting pour extraire les signaux GTM depuis le markdown Firecrawl. Trois axes à trancher : nombre d'appels (one-shot vs multi-shot vs pipeline étagé), format de sortie (JSON libre vs balises XML vs tool use), modèle.
+**Contexte** : choix de la stratégie de prompting pour extraire les signaux GTM depuis le markdown Firecrawl. Trois axes à trancher : nombre d'appels (one-shot vs multi-shot vs pipeline étagé), format de sortie (JSON libre vs balises XML vs tool use), provider/modèle.
 
-**Décision** :
+**Décision (initiale)** : Claude Agent SDK avec OAuth Max, modèle `claude-sonnet-4-6`, one-shot + tool use + temperature 0.
 
-- **1 seul appel** par analyse (one-shot).
-- **Tool use** avec input schema dérivé du schema Zod `@youno/shared/schemas/signals`. Claude est forcé de générer une réponse conforme.
-- **Temperature 0**.
-- **Modèle** : Claude Sonnet 4.6 (`claude-sonnet-4-6`).
-- **Prompt système court** avec instruction explicite "mets `null` plutôt que d'inventer".
-- **Validation Zod redondante** côté API en post-pro (double sécurité).
+**Découverte pendant l'implémentation J3** : `@anthropic-ai/claude-agent-sdk` est un wrapper autour du CLI `claude` (Claude Code) qui lit une session OAuth stockée localement après un `claude login` interactif. Le SDK ne peut pas s'authentifier programmatiquement depuis un serveur Node — sur Render, il n'y a personne pour faire `claude login`, et la session n'existe pas. Le SDK est conçu pour des workflows agentiques multi-tours dans le runtime Claude Code, pas pour des appels API one-shot depuis un backend.
 
-**Pourquoi** :
+**Décision révisée** :
 
-- One-shot suffit : le markdown Firecrawl d'une homepage + 2-4 pages clés fait ~3-15k tokens, Claude Sonnet 4.6 gère ça largement sans dégradation. Multi-shot en parallèle multiplierait le coût en tokens sans gain notable de qualité pour ce scope.
-- Tool use vs JSON libre : élimine le risque de JSON cassé / parsing fragile / retries. Pattern standard 2026 pour structured output avec Claude.
-- Temperature 0 : tâche d'extraction déterministe, mêmes inputs → même output, reproductible et debuggable.
-- Sonnet 4.6 plutôt que Opus 4.7 : surdimensionné pour cette tâche, et coûteux en tokens Max. Plutôt que Haiku 4.5 : risque d'hallucinations sur l'extraction qualitative.
-- Instruction "null > inventer" : limite drastiquement les hallucinations sur les signaux peu présents dans le contenu source.
+- **Provider** : OpenRouter (accès Claude + 200+ autres modèles via API OpenAI-compatible)
+- **Modèle** : `anthropic/claude-sonnet-4.5` (slug OpenRouter), porté par `LLM_MODEL` pour switch trivial
+- **SDK** : `openai` npm avec `baseURL: 'https://openrouter.ai/api/v1'` + `OPENROUTER_API_KEY`
+- **1 seul appel** par analyse (one-shot)
+- **Tool use forcé** avec format OpenAI : `tools: [{ type: 'function', function: { name, parameters } }]` + `tool_choice: { type: 'function', function: { name } }`
+- **Temperature 0**, max_tokens 2000
+- **Prompt système court** avec instruction explicite "mets `null` plutôt que d'inventer"
+- **Validation Zod redondante** côté API en post-pro (double sécurité)
+
+**Pourquoi OpenRouter (vs Anthropic API direct vs GitHub Models API)** :
+
+- **Anthropic API direct** (`@anthropic-ai/sdk` + `ANTHROPIC_API_KEY`) : option de réference, mature, $5 crédit minimum sur compte Anthropic. **Talking point en restitution un peu plus standard**.
+- **OpenRouter** : $1 gratuit à l'inscription, agrège tous les providers derrière une seule clé, switch de modèle en changeant le slug. **Talking point en restitution : flexibilité multi-modèles** (évolution possible vers GPT-5 ou Gemini sans refactor du code).
+- **GitHub Models API** : preview, rate limits sévères (~150 req/jour, 8K tokens max), risque de breaking changes pendant la fenêtre de démo. Écarté.
+
+OpenRouter retenu : coût d'entrée nul (essentiel pour le brief 0 €), flexibilité multi-modèles défendable en restitution, et l'API OpenAI-compatible reste une compétence transférable sur n'importe quel projet futur.
+
+**Pourquoi one-shot + tool use + temperature 0** (inchangé vs ADR initial) :
+
+- One-shot suffit : le markdown Firecrawl d'une homepage + 2-4 pages clés fait ~3-15k tokens, Claude Sonnet gère ça sans dégradation. Multi-shot multiplierait le coût sans gain notable.
+- Tool use vs JSON libre : élimine le risque de JSON cassé / parsing fragile / retries. Pattern standard 2026.
+- Temperature 0 : tâche d'extraction déterministe, mêmes inputs → même output, reproductible.
+- Sonnet 4.5 plutôt qu'Opus : surdimensionné pour cette tâche. Plutôt qu'Haiku : risque d'hallucinations sur l'extraction qualitative.
+- Instruction "null > inventer" : limite drastiquement les hallucinations sur signaux absents.
 
 **Conséquences acceptées** :
 
-- Si le markdown source est partiel ou mal extrait, l'analyse en pâtit (garbage in, garbage out). Mitigé par la stratégie multi-pages (homepage + /pricing + /careers + /customers + /about quand disponibles).
-- Pas de fallback automatique sur un autre modèle si Claude Sonnet 4.6 indisponible. Mention possible en restitution comme évolution.
+- Une couche d'intermédiation (OpenRouter) en plus → +50-200ms de latence vs API direct, négligeable vs les ~5-15s du scraping Firecrawl.
+- Le prompt caching natif Anthropic n'est pas exposé via OpenRouter — pas critique pour 1 appel one-shot, mais talking point en moins en restitution.
+- Si le markdown source est partiel ou mal extrait, l'analyse en pâtit (garbage in, garbage out). Mitigé par la stratégie multi-pages.
+- Pas de fallback automatique sur un autre modèle si OpenRouter ou Sonnet indisponible. Mention possible en restitution comme évolution (le slug `LLM_MODEL` permettrait un fallback trivial).
 
 ---
 

@@ -163,19 +163,31 @@ Lib npm self-hostée. Parse le HTML brut récupéré par Firecrawl et identifie 
 
 **Pourquoi pas demander à Claude de deviner** : risque d'hallucination sur les techs, et Wappalyzer fait ça déterministe à partir du HTML factuel (signatures CSS, scripts, headers). On garde Claude pour le qualitatif.
 
-## LLM — Claude via Claude Agent SDK
+## LLM — Claude Sonnet via OpenRouter
 
-`@anthropic-ai/claude-agent-sdk`, authentification OAuth liée à l'abonnement Claude Max. Pas de clé API séparée à gérer, pas de facturation à l'usage : la consommation passe sur le quota Max.
+OpenRouter agrège l'accès à 200+ modèles (Claude, GPT, Gemini, etc.) derrière une seule API OpenAI-compatible et une seule clé. On l'utilise via le package `openai` côté Node avec `baseURL: 'https://openrouter.ai/api/v1'`.
+
+### Pourquoi OpenRouter (vs Anthropic API directe vs Claude Agent SDK)
+
+Le plan initial (ADR-009 v1) prévoyait `@anthropic-ai/claude-agent-sdk` avec auth OAuth liée à l'abonnement Max. **Découvert pendant l'implémentation J3** : ce SDK est un wrapper autour du CLI `claude` (Claude Code) qui lit une session interactive locale ; il est inutilisable depuis un serveur Node sur Render. Voir ADR-009 mis à jour.
+
+Trois alternatives évaluées :
+
+- **Anthropic API directe** (`@anthropic-ai/sdk` + `ANTHROPIC_API_KEY`) : standard, mature, mais nécessite création de compte Anthropic + crédit.
+- **OpenRouter** : un seul endpoint pour Claude + tous les autres modèles, $1 gratuit à l'inscription, switch de modèle trivial via le slug `model: 'anthropic/claude-sonnet-4.5'`.
+- **GitHub Models API** : preview, rate limits sévères (~150 req/jour), risque de breaking changes pendant la fenêtre de démo.
+
+OpenRouter retenu pour le coût d'entrée nul, la flexibilité multi-modèles (talking point en restitution sur l'évolution possible), et la simplicité d'intégration via SDK OpenAI-compatible.
 
 ### Modèle
 
-Claude Sonnet 4.6 (string : `claude-sonnet-4-6`). Sweet spot qualité / vitesse / coût en tokens Max pour cette tâche. Opus 4.7 serait surdimensionné, Haiku 4.5 risquerait des hallucinations sur l'extraction qualitative.
+`anthropic/claude-sonnet-4.5` (slug OpenRouter). Sweet spot qualité / vitesse / coût pour cette tâche. Opus serait surdimensionné, Haiku risquerait des hallucinations sur l'extraction qualitative. Le slug est porté par la variable d'env `LLM_MODEL` pour pouvoir switcher en 1 ligne.
 
 ### Pattern d'appel
 
 1 appel par analyse, pas de chaînage multi-étapes :
 
-- **Tool use forcé** — un outil `extract_company_signals` est défini avec un input schema dérivé du schema Zod `@youno/shared/schemas/signals`. Claude est obligé de générer une réponse conforme. Aucun parsing de JSON cassé à gérer.
+- **Tool use forcé** — un outil `extract_company_signals` est défini avec un input schema dérivé du schema Zod `@youno/shared/schemas/signals`. OpenRouter expose le format OpenAI-compatible (`tools: [{ type: 'function', function: { name, parameters } }]` + `tool_choice: { type: 'function', function: { name } }`). Le LLM est obligé de retourner un JSON conforme. Aucun parsing de JSON cassé à gérer.
 - **Temperature 0** — tâche d'extraction déterministe, pas créative. Mêmes inputs → même output.
 - **Prompt système court et tranché** — instruction explicite "mets `null` plutôt que d'inventer" pour limiter les hallucinations sur les signaux absents.
 - **Max tokens** — 2000 (large marge pour le JSON de signaux, qui fait ~500-1000 tokens en pratique).
@@ -183,6 +195,10 @@ Claude Sonnet 4.6 (string : `claude-sonnet-4-6`). Sweet spot qualité / vitesse 
 ### Validation post-appel
 
 Même si tool use force la conformité, validation Zod redondante côté API en post-pro pour double sécurité avant écriture DB.
+
+### Coût indicatif
+
+~$0.01-0.02 par analyse (Sonnet 4.5 via OpenRouter, ~5K input + 1K output tokens). $1 gratuit à l'inscription couvre largement le scope démo (~50 analyses test).
 
 ## Auth — Clerk
 
