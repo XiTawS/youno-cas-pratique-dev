@@ -1,12 +1,19 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
 import type { AnalysisStatus, Signals } from '@youno/shared/schemas/signals';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Loader2, Printer } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { fetchAnalysisById } from '@/lib/api';
+import { exportAsMarkdown, exportAsPdf } from '@/lib/exportAnalysis';
 
 // Page de détail d'une analyse - récupère par ID + affiche les blocs qualitatifs.
 // Voir ADR-013 pour la refonte (statut + recommandation, plus de score numérique).
@@ -59,14 +66,37 @@ export function Analysis() {
 
   return (
     <div className="min-h-screen px-4 py-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6 print-area">
         {/* En-tête boîte : nom + description courte + tags */}
         <header className="space-y-2">
-          <Button asChild variant="ghost" size="sm" className="-ml-3">
-            <Link to="/">
-              <ArrowLeft className="h-4 w-4" /> Nouvelle analyse
-            </Link>
-          </Button>
+          <div className="flex items-center justify-between gap-2 print:hidden">
+            <Button asChild variant="ghost" size="sm" className="-ml-3">
+              <Link to="/">
+                <ArrowLeft className="h-4 w-4" /> Retour
+              </Link>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4" />
+                  Exporter
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={() => exportAsMarkdown(data)}
+                >
+                  <FileText className="h-4 w-4" />
+                  Markdown (.md)
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onSelect={() => exportAsPdf()}>
+                  <Printer className="h-4 w-4" />
+                  PDF (impression)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <h1 className="text-3xl font-semibold tracking-tight">{signals.company.name}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
             {signals.company.description}

@@ -145,3 +145,49 @@
     animation-duration: 200ms;
   }
 }
+
+/* Feuille de style impression : utilisée par exportAsPdf() pour générer un
+   PDF via la modale d'impression native du navigateur. Cache l'AppShell
+   (sidebar + topbar mobile) et n'affiche que .print-area. */
+@media print {
+  /* Forcer fond blanc + texte noir pour économiser l'encre */
+  :root {
+    --background: white;
+    --foreground: black;
+    --card: white;
+    --card-foreground: black;
+    --muted-foreground: #555;
+    --border: #ccc;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  /* Cache la sidebar + topbar mobile + boutons d'action */
+  aside,
+  header.md\:hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Le main prend toute la largeur */
+  main {
+    width: 100% !important;
+  }
+
+  /* Évite les coupures laides au milieu d'une card */
+  .print-area > section,
+  .print-area > div,
+  article,
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ombres et arrondis simplifiés en print */
+  * {
+    box-shadow: none !important;
+  }
+}
+
