@@ -27,8 +27,8 @@ export function AppShell({ children, onNewAnalysis }: AppShellProps) {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar desktop */}
-      <aside className="hidden md:flex w-60 flex-col border-r border-[var(--color-border)] bg-card">
+      {/* Sidebar desktop - sticky pour rester fixée pendant le scroll du main */}
+      <aside className="hidden md:flex w-60 flex-col border-r border-[var(--color-border)] bg-card sticky top-0 h-screen shrink-0">
         <SidebarContent onNewAnalysis={onNewAnalysis} />
       </aside>
 
