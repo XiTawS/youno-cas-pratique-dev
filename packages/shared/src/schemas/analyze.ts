@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { gtmSignalsSchema, scoreBreakdownSchema } from './signals';
+import { gtmSignalsSchema, scoreBreakdownSchema } from './signals.js';
 
 // Body de POST /api/analyze - une seule URL en input.
 // On force https://www.example.com style. Pas d'URLs IP, pas de schéma autre.
