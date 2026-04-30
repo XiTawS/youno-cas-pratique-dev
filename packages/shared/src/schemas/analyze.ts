@@ -2,16 +2,28 @@ import { z } from 'zod';
 import { AnalysisStatusSchema, SignalsSchema } from './signals.js';
 
 // Body de POST /api/analyze - une seule URL en input.
-// On force https://www.example.com style. Pas d'URLs IP, pas de schéma autre.
-// (Firecrawl gère http/https mais on canonise pour limiter les surprises côté
-// scraping et cache par domaine plus tard.)
+// On accepte la forme nue ("tec6.fr", "www.stripe.com/pricing") et on préfixe
+// automatiquement https:// si absent. Pas d'URLs IP, pas de schéma autre.
 const HTTP_OR_HTTPS_URL = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
 
 export const analyzeRequestSchema = z.object({
   url: z
     .string()
-    .url('URL invalide')
-    .regex(HTTP_OR_HTTPS_URL, 'URL doit utiliser http:// ou https://'),
+    .min(1, 'URL requise')
+    .transform((val) => {
+      const trimmed = val.trim();
+      if (!trimmed) return trimmed;
+      // Si déjà un protocole quelconque → garde tel quel (la regex finale
+      // rejettera tout ce qui n'est pas http/https). Sinon préfixe https://.
+      if (/^[a-z][a-z0-9+\-.]*:/i.test(trimmed)) return trimmed;
+      return `https://${trimmed}`;
+    })
+    .pipe(
+      z
+        .string()
+        .url('URL invalide')
+        .regex(HTTP_OR_HTTPS_URL, 'URL doit ressembler à un domaine valide'),
+    ),
 });
 
 export type AnalyzeRequest = z.infer<typeof analyzeRequestSchema>;

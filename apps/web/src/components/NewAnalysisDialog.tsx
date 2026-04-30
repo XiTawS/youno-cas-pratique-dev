@@ -78,8 +78,8 @@ export function NewAnalysisDialog({ open, onOpenChange }: NewAnalysisDialogProps
             <Label htmlFor="url">URL du site</Label>
             <Input
               id="url"
-              type="url"
-              placeholder="https://stripe.com"
+              type="text"
+              placeholder="stripe.com ou https://stripe.com"
               autoComplete="url"
               autoFocus
               disabled={analyze.isPending}
