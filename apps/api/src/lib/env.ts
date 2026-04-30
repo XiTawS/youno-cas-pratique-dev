@@ -49,6 +49,17 @@ const envSchema = z.object({
     .string()
     .min(1, 'FIRECRAWL_API_KEY est requis')
     .startsWith('fc-', 'FIRECRAWL_API_KEY doit commencer par fc-'),
+
+  // OpenRouter - agrégateur LLM via API OpenAI-compatible. Voir ADR-009.
+  // $1 gratuit à l'inscription, format `sk-or-v1-...`
+  OPENROUTER_API_KEY: z
+    .string()
+    .min(1, 'OPENROUTER_API_KEY est requis')
+    .startsWith('sk-or-', 'OPENROUTER_API_KEY doit commencer par sk-or-'),
+
+  // Slug du modèle OpenRouter - permet de switcher en 1 ligne d'env.
+  // Défaut Sonnet 4.5 : sweet spot qualité / vitesse / coût pour l'extraction.
+  LLM_MODEL: z.string().min(1).default('anthropic/claude-sonnet-4.5'),
 });
 
 export type Env = z.infer<typeof envSchema>;
