@@ -2,11 +2,13 @@
 
 ## État (au 2026-04-30)
 
-Phase **Pipeline scraping** (J2 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 terminé** : monorepo pnpm + Fastify + Vite/React/Tailwind/shadcn + Clerk (email + password admin-managed) + Neon/Drizzle (table `users` vide) + déploiement Vercel + Render. Login bout-en-bout fonctionnel sur https://youno-cas-pratique-dev-api.vercel.app via API https://youno-cas-pratique-api.onrender.com.
+Phase **Pipeline LLM & scoring** (J3 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 + J2 terminés** : monorepo pnpm + Fastify + Vite/React/Tailwind/shadcn + Clerk (email + password admin-managed) + Neon/Drizzle (table `users` vide) + déploiement Vercel + Render + endpoint `POST /api/analyze` (Firecrawl + Wappalyzer en parallèle, 3-5 pages markdown + tech stack en 2-15s sur Stripe / Linear / Notion).
 
 ## En cours
 
-Démarrage J2 — pipeline scraping Firecrawl + Wappalyzer. Endpoint `POST /api/analyze` qui prend une URL et retourne markdown brut + tech stack. Pas encore de persistance ni LLM (J3).
+Démarrage J3 — pipeline LLM & scoring. Schema Zod des signaux GTM, wrapper Claude Agent SDK avec tool use forcé, formule Maturité GTM /100, persistance des analyses en DB + cache 24h.
+
+**⚠️ Action utilisateur requise avant le prochain push** : ajouter `FIRECRAWL_API_KEY` aux envs Render (Settings → Environment), sinon le redeploy de l'API en prod échouera au boot via la validation Zod fail-fast.
 
 ## Prochaines actions
 
@@ -27,10 +29,10 @@ Démarrage J2 — pipeline scraping Firecrawl + Wappalyzer. Endpoint `POST /api/
 
 ### J2 — Pipeline scraping
 
-- [ ] Wrapper `apps/api/src/services/scraping.ts` (Firecrawl `/map` + `/scrape`)
-- [ ] Wrapper `apps/api/src/services/tech-stack.ts` (Wappalyzer)
-- [ ] Endpoint `POST /api/analyze` qui retourne markdown + tech stack pour une URL
-- [ ] Test manuel sur 3 sites variés : Stripe (SSR), Linear (SPA), une early-stage random
+- [x] Wrapper `apps/api/src/services/scraping.ts` (Firecrawl `/map` + `/scrape`)
+- [x] Wrapper `apps/api/src/services/tech-stack.ts` (Wappalyzer via simple-wappalyzer)
+- [x] Endpoint `POST /api/analyze` qui retourne markdown + tech stack pour une URL
+- [x] Test sur 3 sites variés : Stripe (3.5s, 4 techs), Linear (1.7s, 8 techs), Notion (15.5s, 14 techs)
 
 ### J3 — Pipeline LLM & scoring
 
