@@ -115,11 +115,29 @@ Front sur Vercel, API sur Render, DB sur Neon, auth sur Clerk. Tout en free tier
 - **Login** username + password (page custom one-page, voir ADR-012)
 - **Dashboard** avec stats par statut + dernières analyses
 - **Nouvelle analyse** depuis n'importe quelle page (dialog modal)
-- **Page Analysis** : statut qualitatif en gros, recommandation, 3 cards signaux (Comment ils vendent / Maturité commerciale / Cible visée), stack technique
+- **Page Analysis** : statut qualitatif en gros, recommandation, 3 cards signaux (Comment ils vendent / Maturité commerciale / Cible visée), stack technique. En-tête boîte avec badges secteur 📂 + taille 👥 + segment + géo
 - **Historique** avec data table : recherche par domaine, tri par colonne, pagination
 - **Export** : Markdown (.md) + PDF (via impression navigateur, feuille de style print dédiée)
 - **Dark mode** persistant (toggle dans la sidebar, détection préférence système)
 - **Cache 24h** par utilisateur + domaine (économise credits Firecrawl + tokens LLM)
+
+### Saisie d'URL et gestion d'erreurs
+
+L'input accepte la **forme nue** (`tec6.fr`, `www.cal.com/pricing`) ou complète (`https://stripe.com`). Le préfixe `https://` est ajouté automatiquement avant validation.
+
+Validation stricte côté client (Zod) : exige au minimum un point + un TLD alphabétique de 2+ chars. Les saisies sans TLD plausible (`hcbheuvguevigecge`) sont rejetées avant l'appel API.
+
+Les erreurs techniques (Firecrawl, OpenRouter, réseau) sont **mappées en messages FR user-friendly** via `userFriendlyScrapingMessage()` dans `apps/api/src/services/scraping.ts`. L'utilisateur voit "Ce domaine n'existe pas ou n'est pas joignable" au lieu de "Firecrawl /map error: ENOTFOUND". Le détail technique reste dans les logs Pino côté serveur.
+
+| Erreur technique            | Message user                                           |
+| --------------------------- | ------------------------------------------------------ |
+| DNS / ENOTFOUND / not found | Ce domaine n'existe pas ou n'est pas joignable         |
+| timeout / ETIMEDOUT         | Le site met trop de temps à répondre                   |
+| 429 / rate limit            | Trop de requêtes simultanées                           |
+| 401 / 403 / forbidden       | Le site bloque les outils d'analyse automatique        |
+| 402 / quota / credits       | Quota d'analyse temporairement atteint                 |
+| Aucune page scrappée        | Le contenu n'a pas pu être récupéré (le site bloque ?) |
+| LLM erreur                  | L'analyse IA a échoué. Réessaie dans quelques instants |
 
 ## État du projet
 

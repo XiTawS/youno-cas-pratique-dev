@@ -18,8 +18,11 @@ J5 polish en cours :
 - [x] Refonte UI dashboard (sidebar shell + stats + data table + dark mode)
 - [x] Login custom one-page (username + password sur même écran)
 - [x] Export Markdown + PDF (impression navigateur)
-- [x] Tests unitaires Vitest (41 tests sur la logique pure)
-- [x] Audit doc (README/IDEE/02-stack alignés sur l'état réel du projet)
+- [x] Ajout `approximateSize` (taille employés) + secteur plus visible dans le header
+- [x] Saisie URL flexible (forme nue acceptée) + validation TLD stricte
+- [x] Mapping erreurs Firecrawl/LLM → messages FR user-friendly
+- [x] Tests unitaires Vitest (56 tests sur la logique pure)
+- [x] Audit doc (README/IDEE/01-architecture/02-stack alignés sur l'état réel)
 - [ ] Loom principal (5-8 min) + Loom side project bonus
 - [ ] Tag `v1.0.0` sur GitHub
 - [ ] Email à Kaio

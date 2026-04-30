@@ -130,3 +130,32 @@ Toutes les dépendances ont un plan gratuit suffisant pour le scope. Aucune cart
 - **Cache DB** : si une URL a été analysée par le même user dans les 24h, retour direct sans re-scraper / re-LLM
 - **Cold start Render free** : ~30s sur la 1ère requête après 15 min d'inactivité, mitigé par warm-up manuel avant démo
 - **Latence pipeline** : ~10-25s par analyse fraîche (Firecrawl 5-15s + Claude 3-8s + écritures DB ~200ms)
+
+## Considérations UX
+
+### Saisie d'URL flexible
+
+`analyzeRequestSchema` (`@youno/shared/schemas/analyze`) accepte la forme nue ou complète :
+
+- `tec6.fr` → préfixé en `https://tec6.fr`
+- `www.cal.com/pricing` → préfixé en `https://www.cal.com/pricing`
+- `https://stripe.com` → gardé tel quel
+- `ftp://example.com` ou autres protocoles → gardé tel quel et rejeté par la regex finale
+
+Validation stricte : `/^https?:\/\/([a-z0-9-]+\.)+[a-z]{2,}(\/.*)?$/i` exige un point + TLD alphabétique de 2+ chars. Une saisie comme `hcbheuvguevigecge` est rejetée avant l'appel API (gain réseau + crédit Firecrawl).
+
+### Mapping des erreurs techniques en messages FR user-friendly
+
+`userFriendlyScrapingMessage()` dans `apps/api/src/services/scraping.ts` transforme les erreurs Firecrawl/réseau bruts en messages exploitables par un utilisateur final :
+
+| Détection (lowercase contains) | Message utilisateur                                       |
+| ------------------------------ | --------------------------------------------------------- |
+| `enotfound` / `dns`            | Ce domaine n'existe pas ou n'est pas joignable            |
+| `timeout` / `etimedout`        | Le site met trop de temps à répondre                      |
+| `429` / `rate limit`           | Trop de requêtes simultanées                              |
+| `401` / `403` / `forbidden`    | Le site bloque les outils d'analyse automatique           |
+| `402` / `quota` / `credits`    | Quota d'analyse temporairement atteint                    |
+| `404` / `not found`            | Le site est introuvable                                   |
+| Fallback                       | L'analyse de ce site a échoué. Le domaine est-il public ? |
+
+Le détail technique brut (incluant les références "Firecrawl", stacktraces, etc.) reste dans les logs Pino côté serveur — jamais exposé au front. Idem pour `apps/api/src/services/extraction.ts` qui mappe les erreurs OpenRouter en "L'analyse IA a échoué" générique.
