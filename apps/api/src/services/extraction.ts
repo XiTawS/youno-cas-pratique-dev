@@ -1,8 +1,8 @@
-import { gtmSignalsSchema, type GtmSignals } from '@youno/shared/schemas/signals';
+import type { ScrapedPage } from '@youno/shared/schemas/analyze';
+import { SignalsSchema, type Signals } from '@youno/shared/schemas/signals';
 import OpenAI from 'openai';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { env } from '../lib/env.js';
-import type { ScrapedPage } from '@youno/shared/schemas/analyze';
 
 // OpenRouter endpoint - API OpenAI-compatible (voir ADR-009).
 // Headers HTTP-Referer et X-Title sont des conventions OpenRouter pour le
@@ -19,18 +19,17 @@ const client = new OpenAI({
 const TOOL_NAME = 'extract_company_signals';
 
 const SYSTEM_PROMPT = `Tu es un analyste GTM pour Konsole, un SaaS de Revenue Engineering. \
-Un SDR (Sales Development Rep) reçoit une URL et doit qualifier rapidement le prospect sur 3 axes :
-1. Comment ils vendent (sales motion : self-serve / sales-led / hybride)
-2. Sont-ils en croissance / en train d'acheter (signaux growth)
-3. Est-ce un ICP qui correspond à mon offre
+Un commercial reçoit une URL et doit qualifier rapidement le prospect.
 
-Tu dois extraire ces 3 axes depuis le contenu fourni (markdown de 3-5 pages du site + tech stack détectée).
+Tu dois extraire des signaux factuels depuis le contenu fourni (markdown de 3-5 pages du site + tech stack détectée) et générer une recommandation actionnable.
 
 RÈGLES STRICTES :
-- N'INVENTE JAMAIS. Si une info n'est pas explicitement dans le contenu, mets null pour les strings, [] pour les arrays, false pour les booléens, 'unknown' pour les enums quand cette valeur existe.
-- Pour 'evidence' (sales motion), cite TEXTUELLEMENT un passage du markdown (max 200 chars). Pas de paraphrase.
-- 'notesForSdr' : 1-3 phrases concrètes et actionnables pour le SDR (ex. "Hiring 5 SDRs en EMEA, signal d'expansion fort").
-- Si le contenu est trop maigre pour conclure (markdown tronqué, site bloqué), mets extractionConfidence='low' et notesForSdr explicite la limite.
+
+- N'INVENTE JAMAIS. Si une info n'est pas explicitement dans le contenu, mets null pour les strings, [] pour les arrays, false pour les booléens. Pour les enums, choisis la valeur la plus prudente.
+- Recopie tel quel le tableau techStack qu'on te fournit dans la section "Tech stack". Ne le modifie pas.
+- Pour la recommandation : 2-3 phrases en français, actionnables pour un commercial qui prospecterait cette boîte. Indique l'approche commerciale recommandée (démo, free trial, contact direct) et un angle d'accroche concret basé sur les signaux les plus saillants (hiring sales, blog actif récent, segment enterprise, etc.). Pas de blabla générique.
+- description : 1-2 phrases en français qui résument ce que fait la boîte. Pas de marketing copy.
+- Tous les libellés visibles côté front sont en français, mais les enums (PLG, Sales-led, SMB, Enterprise...) restent en anglais (standards GTM).
 
 Tu DOIS appeler l'outil ${TOOL_NAME} une et une seule fois avec ta réponse structurée.`;
 
@@ -46,7 +45,7 @@ export class ExtractionError extends Error {
 
 // Convertit le schema Zod en JSON Schema pour le tool input.
 // Calculé une fois au boot, pas à chaque appel.
-const toolParameters = zodToJsonSchema(gtmSignalsSchema, {
+const toolParameters = zodToJsonSchema(SignalsSchema, {
   $refStrategy: 'none', // OpenRouter accepte mieux du JSON Schema flat sans $refs
   target: 'openApi3',
 });
@@ -64,7 +63,7 @@ function buildUserContent(url: string, pages: ScrapedPage[], techStack: string[]
 
   return `URL analysée: ${url}
 
-Tech stack détectée par Wappalyzer (${techStack.length} technos):
+Tech stack détectée par Wappalyzer (${techStack.length} technos) - à recopier tel quel dans le champ techStack :
 ${techStack.length > 0 ? techStack.map((t) => `- ${t}`).join('\n') : '(aucune)'}
 
 Contenu scrappé des pages (${pages.length} pages):
@@ -78,9 +77,39 @@ interface ExtractInput {
   techStack: string[];
 }
 
+// Sanitize défensive : Sonnet 4.5 peut dépasser les .max() malgré le tool schema.
+// On tronque AVANT le safeParse pour éviter de planter sur des dépassements bénins.
+function sanitizeBeforeParse(parsed: unknown): unknown {
+  if (!parsed || typeof parsed !== 'object') return parsed;
+  const obj = parsed as Record<string, unknown>;
+
+  if (typeof obj.recommendation === 'string' && obj.recommendation.length > 2000) {
+    obj.recommendation = obj.recommendation.slice(0, 2000);
+  }
+
+  const truncate = (path: string[], max: number): void => {
+    let cursor: Record<string, unknown> | undefined = obj;
+    for (let i = 0; i < path.length - 1; i++) {
+      const key = path[i];
+      if (key === undefined || cursor === undefined) return;
+      const next = cursor[key];
+      if (!next || typeof next !== 'object') return;
+      cursor = next as Record<string, unknown>;
+    }
+    const lastKey = path[path.length - 1];
+    if (cursor && lastKey !== undefined && Array.isArray(cursor[lastKey])) {
+      cursor[lastKey] = (cursor[lastKey] as unknown[]).slice(0, max);
+    }
+  };
+  truncate(['icp', 'targetRoles'], 5);
+  truncate(['icp', 'verticals'], 5);
+
+  return obj;
+}
+
 // Extraction one-shot avec tool use forcé. Validation Zod redondante en post-pro
 // même si le tool schema force déjà la conformité (belt + suspenders).
-export async function extractSignals({ url, pages, techStack }: ExtractInput): Promise<GtmSignals> {
+export async function extractSignals({ url, pages, techStack }: ExtractInput): Promise<Signals> {
   let response;
   try {
     response = await client.chat.completions.create({
@@ -97,7 +126,7 @@ export async function extractSignals({ url, pages, techStack }: ExtractInput): P
           function: {
             name: TOOL_NAME,
             description:
-              'Retourne les signaux GTM extraits depuis le contenu du site (3 axes : sales motion, growth, ICP fit).',
+              'Retourne les signaux extraits depuis le contenu du site (entreprise, sales motion, maturité commerciale, ICP, recommandation actionnable).',
             parameters: toolParameters as Record<string, unknown>,
           },
         },
@@ -126,41 +155,12 @@ export async function extractSignals({ url, pages, techStack }: ExtractInput): P
     );
   }
 
-  // Sanitize défensive : Sonnet 4.5 peut dépasser les .max() malgré le tool schema
-  // (il voit le JSON schema mais ne respecte pas toujours les bornes). On tronque
-  // avant la validation Zod pour éviter de planter sur des dépassements bénins.
-  if (parsed && typeof parsed === 'object') {
-    const obj = parsed as Record<string, unknown>;
-    if (typeof obj.notesForSdr === 'string' && obj.notesForSdr.length > 2000) {
-      obj.notesForSdr = obj.notesForSdr.slice(0, 2000);
-    }
-    const truncate = (path: string[], max: number): void => {
-      let cursor: Record<string, unknown> | undefined = obj;
-      for (let i = 0; i < path.length - 1; i++) {
-        const key = path[i];
-        if (key === undefined || cursor === undefined) return;
-        const next = cursor[key];
-        if (!next || typeof next !== 'object') return;
-        cursor = next as Record<string, unknown>;
-      }
-      const lastKey = path[path.length - 1];
-      if (cursor && lastKey !== undefined && Array.isArray(cursor[lastKey])) {
-        cursor[lastKey] = (cursor[lastKey] as unknown[]).slice(0, max);
-      }
-    };
-    truncate(['growthSignals', 'hiringRoles'], 30);
-    truncate(['growthSignals', 'recentNewsOrLaunches'], 15);
-    truncate(['icpFit', 'targetRoles'], 20);
-    truncate(['icpFit', 'industryFocus'], 20);
-    truncate(['icpFit', 'geographicFocus'], 20);
-  }
+  parsed = sanitizeBeforeParse(parsed);
 
-  // Validation Zod redondante - si le LLM a baroqué le schema malgré le tool use
-  // ET la sanitize, on échoue ici plutôt que d'écrire de la merde en DB.
-  const result = gtmSignalsSchema.safeParse(parsed);
+  const result = SignalsSchema.safeParse(parsed);
   if (!result.success) {
     throw new ExtractionError(
-      `Sortie LLM non conforme à gtmSignalsSchema: ${JSON.stringify(result.error.flatten().fieldErrors)}`,
+      `Sortie LLM non conforme à SignalsSchema: ${JSON.stringify(result.error.flatten().fieldErrors)}`,
     );
   }
 
