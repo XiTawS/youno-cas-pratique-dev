@@ -43,6 +43,9 @@ export async function analysesRoutes(app: FastifyInstance): Promise<void> {
         return { items: [] };
       }
 
+      // Filtre pipeline_status='success' : depuis le 2026-05-01 on n'insère plus
+      // les rows échouées (cleaner historique). Les anciennes rows error/pending
+      // d'avant cette date sont masquées.
       const rows = await db
         .select({
           id: analyses.id,
@@ -54,7 +57,7 @@ export async function analysesRoutes(app: FastifyInstance): Promise<void> {
           createdAt: analyses.createdAt,
         })
         .from(analyses)
-        .where(eq(analyses.userId, userDbId))
+        .where(and(eq(analyses.userId, userDbId), eq(analyses.pipelineStatus, 'success')))
         .orderBy(desc(analyses.createdAt))
         .limit(HISTORY_LIMIT);
 

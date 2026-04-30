@@ -5,8 +5,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { db } from '../db/index.js';
 import { analyses, users, type Analysis, type NewAnalysis } from '../db/schema.js';
-import { ExtractionError, extractSignals } from '../services/extraction.js';
-import { ScrapingError, scrapeUrl } from '../services/scraping.js';
+import { extractSignals } from '../services/extraction.js';
+import { scrapeUrl } from '../services/scraping.js';
 import { computeStatus } from '../services/status.js';
 import { detectTechStack } from '../services/tech-stack.js';
 
@@ -108,70 +108,52 @@ export async function analyzeRoute(app: FastifyInstance): Promise<void> {
         };
       }
 
-      // 2. Insert pending
+      // 2. Pipeline en mémoire - on ne persiste qu'en cas de succès
+      // pour ne pas polluer l'historique utilisateur avec des analyses ratées.
+      // Le détail des erreurs reste dans les logs Pino côté serveur.
       const scrapedAt = new Date();
-      const pendingInsert: NewAnalysis = {
+
+      // 3. Scraping + tech stack en parallèle (gain ~1s vs séquentiel)
+      const [scraped, techStack] = await Promise.all([scrapeUrl(url), detectTechStack(url)]);
+      request.log.info(
+        { url, pages: scraped.pages.length, techs: techStack.length },
+        'analyze scraping done',
+      );
+
+      // 4. Extraction LLM (signals incluent techStack et recommendation)
+      const signals = await extractSignals({ url, pages: scraped.pages, techStack });
+
+      // 5. Calcul du statut qualitatif déterministe
+      const status = computeStatus(signals);
+
+      // 6. Insert success (une seule écriture DB sur le path heureux)
+      const successInsert: NewAnalysis = {
         userId: userDbId,
         url,
         domain,
-        pipelineStatus: 'pending',
+        pipelineStatus: 'success',
+        signals,
+        status,
+        recommendation: signals.recommendation,
         createdAt: scrapedAt,
       };
-      const pending = await db.insert(analyses).values(pendingInsert).returning();
-      const pendingRow = pending[0];
-      if (!pendingRow) throw new Error('Insert analyses pending a retourné 0 lignes');
+      const inserted = await db.insert(analyses).values(successInsert).returning();
+      const insertedRow = inserted[0];
+      if (!insertedRow) throw new Error('Insert analyses success a retourné 0 lignes');
 
-      try {
-        // 3. Scraping + tech stack en parallèle (gain ~1s vs séquentiel)
-        const [scraped, techStack] = await Promise.all([scrapeUrl(url), detectTechStack(url)]);
-        request.log.info(
-          { url, pages: scraped.pages.length, techs: techStack.length },
-          'analyze scraping done',
-        );
+      request.log.info({ url, domain, analysisId: insertedRow.id, status }, 'analyze success');
 
-        // 4. Extraction LLM (signals incluent techStack et recommendation)
-        const signals = await extractSignals({ url, pages: scraped.pages, techStack });
-
-        // 5. Calcul du statut qualitatif déterministe
-        const status = computeStatus(signals);
-
-        // 6. Update success
-        await db
-          .update(analyses)
-          .set({
-            signals,
-            status,
-            recommendation: signals.recommendation,
-            pipelineStatus: 'success',
-          })
-          .where(eq(analyses.id, pendingRow.id));
-
-        request.log.info({ url, domain, analysisId: pendingRow.id, status }, 'analyze success');
-
-        return {
-          id: pendingRow.id,
-          url,
-          domain,
-          pages: scraped.pages,
-          signals,
-          status,
-          recommendation: signals.recommendation,
-          scrapedAt: scrapedAt.toISOString(),
-          fromCache: false,
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'unknown error';
-        await db
-          .update(analyses)
-          .set({ pipelineStatus: 'error', errorMessage: message.slice(0, 1000) })
-          .where(eq(analyses.id, pendingRow.id))
-          .catch(() => {
-            request.log.error({ url }, 'failed to update analyses to error status');
-          });
-
-        if (err instanceof ScrapingError || err instanceof ExtractionError) throw err;
-        throw err;
-      }
+      return {
+        id: insertedRow.id,
+        url,
+        domain,
+        pages: scraped.pages,
+        signals,
+        status,
+        recommendation: signals.recommendation,
+        scrapedAt: scrapedAt.toISOString(),
+        fromCache: false,
+      };
     },
   );
 }
