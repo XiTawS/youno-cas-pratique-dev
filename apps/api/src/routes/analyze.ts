@@ -7,7 +7,7 @@ import { db } from '../db/index.js';
 import { analyses, users, type Analysis, type NewAnalysis } from '../db/schema.js';
 import { ExtractionError, extractSignals } from '../services/extraction.js';
 import { ScrapingError, scrapeUrl } from '../services/scraping.js';
-import { computeScore } from '../services/scoring.js';
+import { computeStatus } from '../services/status.js';
 import { detectTechStack } from '../services/tech-stack.js';
 
 // TTL du cache : si une analyse réussie pour ce domaine et cet utilisateur
@@ -27,9 +27,6 @@ async function ensureUserRow(clerkUserId: string, fallbackEmail: string): Promis
   const found = existing[0];
   if (found) return found.id;
 
-  // Pas trouvé : insert. Email récupéré depuis Clerk pour rester source of truth.
-  // Le hook auth global a déjà mis l'email vérifié dans request.userEmail mais
-  // on accepte un fallback au cas où.
   let email = fallbackEmail;
   try {
     const user = await clerkClient.users.getUser(clerkUserId);
@@ -51,8 +48,6 @@ async function ensureUserRow(clerkUserId: string, fallbackEmail: string): Promis
 }
 
 // Cherche une analyse réussie récente pour ce domain + user.
-// Le compteur est sur l'utilisateur courant pour éviter de mélanger les analyses
-// entre comptes (ex. si Léo et Kaio analysent stripe.com à 5 min d'écart).
 async function findCachedAnalysis(userDbId: string, domain: string): Promise<Analysis | undefined> {
   const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
   const rows = await db
@@ -62,7 +57,7 @@ async function findCachedAnalysis(userDbId: string, domain: string): Promise<Ana
       and(
         eq(analyses.userId, userDbId),
         eq(analyses.domain, domain),
-        eq(analyses.status, 'success'),
+        eq(analyses.pipelineStatus, 'success'),
         gt(analyses.createdAt, cutoff),
       ),
     )
@@ -71,11 +66,8 @@ async function findCachedAnalysis(userDbId: string, domain: string): Promise<Ana
   return rows[0];
 }
 
-// POST /api/analyze - le pipeline complet J3 :
-// auth (hook global) → cache 24h → scraping + tech stack → LLM → scoring → persist.
-//
-// Auth : déjà appliquée par plugins/auth.ts (preHandler global).
-// On récupère userId Clerk via getAuth(), puis on lazy-upsert la ligne users.
+// POST /api/analyze - le pipeline complet :
+// auth (hook global) → cache 24h → scraping + tech stack → LLM → status → persist.
 export async function analyzeRoute(app: FastifyInstance): Promise<void> {
   app.withTypeProvider<ZodTypeProvider>().post(
     '/analyze',
@@ -90,45 +82,39 @@ export async function analyzeRoute(app: FastifyInstance): Promise<void> {
       const { userId: clerkUserId } = getAuth(request);
       const fallbackEmail = request.userEmail;
 
-      // Garanti par le hook auth global - sécurité défensive.
       if (!clerkUserId || !fallbackEmail) {
         throw new Error('Contexte auth manquant - hook auth non appliqué');
       }
 
-      // Normalise le domain pour le cache (strip www., lowercase).
       const parsedUrl = new URL(url);
       const domain = parsedUrl.host.replace(/^www\./i, '').toLowerCase();
 
-      // 1. Lazy-upsert user
       const userDbId = await ensureUserRow(clerkUserId, fallbackEmail);
 
-      // 2. Cache lookup
+      // 1. Cache lookup
       const cached = await findCachedAnalysis(userDbId, domain);
-      if (cached?.signals && cached.scoreBreakdown && cached.techStack) {
+      if (cached?.signals && cached.status && cached.recommendation) {
         request.log.info({ url, domain, cachedId: cached.id }, 'analyze cache HIT');
-        // Le markdown des pages n'est pas re-stocké en DB pour économiser
-        // l'espace JSONB (cas pratique scope). On ne le re-renvoie pas en
-        // cache hit - le front a déjà tout ce qu'il faut pour la page Analysis.
         return {
           id: cached.id,
           url: cached.url,
           domain: cached.domain,
-          pages: [], // pages markdown non persistées, vide en cache hit (front gère)
-          techStack: cached.techStack,
+          pages: [], // markdowns non re-stockés en DB
           signals: cached.signals,
-          score: cached.scoreBreakdown,
+          status: cached.status,
+          recommendation: cached.recommendation,
           scrapedAt: cached.createdAt.toISOString(),
           fromCache: true,
         };
       }
 
-      // 3. Insert pending
+      // 2. Insert pending
       const scrapedAt = new Date();
       const pendingInsert: NewAnalysis = {
         userId: userDbId,
         url,
         domain,
-        status: 'pending',
+        pipelineStatus: 'pending',
         createdAt: scrapedAt,
       };
       const pending = await db.insert(analyses).values(pendingInsert).returning();
@@ -136,61 +122,53 @@ export async function analyzeRoute(app: FastifyInstance): Promise<void> {
       if (!pendingRow) throw new Error('Insert analyses pending a retourné 0 lignes');
 
       try {
-        // 4. Scraping + tech stack en parallèle (gain ~1s vs séquentiel)
+        // 3. Scraping + tech stack en parallèle (gain ~1s vs séquentiel)
         const [scraped, techStack] = await Promise.all([scrapeUrl(url), detectTechStack(url)]);
         request.log.info(
           { url, pages: scraped.pages.length, techs: techStack.length },
           'analyze scraping done',
         );
 
-        // 5. Extraction LLM
+        // 4. Extraction LLM (signals incluent techStack et recommendation)
         const signals = await extractSignals({ url, pages: scraped.pages, techStack });
 
-        // 6. Scoring
-        const score = computeScore(signals, techStack);
+        // 5. Calcul du statut qualitatif déterministe
+        const status = computeStatus(signals);
 
-        // 7. Update success
+        // 6. Update success
         await db
           .update(analyses)
           .set({
             signals,
-            techStack,
-            scoreMaturity: score.total,
-            scoreBreakdown: score,
-            status: 'success',
+            status,
+            recommendation: signals.recommendation,
+            pipelineStatus: 'success',
           })
           .where(eq(analyses.id, pendingRow.id));
 
-        request.log.info(
-          { url, domain, analysisId: pendingRow.id, score: score.total },
-          'analyze success',
-        );
+        request.log.info({ url, domain, analysisId: pendingRow.id, status }, 'analyze success');
 
         return {
           id: pendingRow.id,
           url,
           domain,
           pages: scraped.pages,
-          techStack,
           signals,
-          score,
+          status,
+          recommendation: signals.recommendation,
           scrapedAt: scrapedAt.toISOString(),
           fromCache: false,
         };
       } catch (err) {
-        // Log + update DB avec status='error' avant de re-throw vers
-        // l'error handler global qui formera la réponse HTTP.
         const message = err instanceof Error ? err.message : 'unknown error';
         await db
           .update(analyses)
-          .set({ status: 'error', errorMessage: message.slice(0, 1000) })
+          .set({ pipelineStatus: 'error', errorMessage: message.slice(0, 1000) })
           .where(eq(analyses.id, pendingRow.id))
           .catch(() => {
-            // Si l'update DB échoue aussi, on log mais on remonte l'erreur d'origine
             request.log.error({ url }, 'failed to update analyses to error status');
           });
 
-        // Re-throw - les ScrapingError/ExtractionError typées portent leur statusCode.
         if (err instanceof ScrapingError || err instanceof ExtractionError) throw err;
         throw err;
       }
@@ -198,5 +176,4 @@ export async function analyzeRoute(app: FastifyInstance): Promise<void> {
   );
 }
 
-// Utilitaire pour les tests/migrations - non exposé au front.
 export { CACHE_TTL_HOURS };

@@ -1,9 +1,5 @@
 import { getAuth } from '@clerk/fastify';
-import {
-  analysesListResponseSchema,
-  analyzeResponseSchema,
-  scrapedPageSchema,
-} from '@youno/shared/schemas/analyze';
+import { analysesListResponseSchema, analyzeResponseSchema } from '@youno/shared/schemas/analyze';
 import { and, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -11,8 +7,6 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { analyses, users } from '../db/schema.js';
 
-// Helper qui crée une Error portable par l'error handler global Fastify
-// (récupère statusCode + name pour le format JSON uniforme).
 function createHttpError(statusCode: number, message: string): Error & { statusCode: number } {
   const err = new Error(message) as Error & { statusCode: number };
   err.name = statusCode === 404 ? 'NotFound' : statusCode === 409 ? 'Conflict' : 'HttpError';
@@ -20,9 +14,6 @@ function createHttpError(statusCode: number, message: string): Error & { statusC
   return err;
 }
 
-// Helpers pour résoudre l'ID DB de l'utilisateur courant depuis le clerkId.
-// La row users existe forcément ici car l'utilisateur a déjà fait au moins
-// une analyse pour atterrir sur cette page (lazy upsert dans /api/analyze).
 async function getCurrentUserDbId(clerkUserId: string): Promise<string | null> {
   const rows = await db
     .select({ id: users.id })
@@ -36,7 +27,6 @@ const HISTORY_LIMIT = 50;
 
 export async function analysesRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/analyses - liste des analyses de l'utilisateur courant
-  // (les 50 plus récentes, ordre desc par created_at)
   app.withTypeProvider<ZodTypeProvider>().get(
     '/analyses',
     {
@@ -50,7 +40,6 @@ export async function analysesRoutes(app: FastifyInstance): Promise<void> {
 
       const userDbId = await getCurrentUserDbId(clerkUserId);
       if (!userDbId) {
-        // L'utilisateur n'a jamais analysé, donc pas de row users - liste vide.
         return { items: [] };
       }
 
@@ -59,8 +48,8 @@ export async function analysesRoutes(app: FastifyInstance): Promise<void> {
           id: analyses.id,
           url: analyses.url,
           domain: analyses.domain,
+          pipelineStatus: analyses.pipelineStatus,
           status: analyses.status,
-          scoreMaturity: analyses.scoreMaturity,
           errorMessage: analyses.errorMessage,
           createdAt: analyses.createdAt,
         })
@@ -71,8 +60,12 @@ export async function analysesRoutes(app: FastifyInstance): Promise<void> {
 
       return {
         items: rows.map((r) => ({
-          ...r,
-          status: r.status as 'pending' | 'success' | 'error',
+          id: r.id,
+          url: r.url,
+          domain: r.domain,
+          pipelineStatus: r.pipelineStatus,
+          status: r.status,
+          errorMessage: r.errorMessage,
           createdAt: r.createdAt.toISOString(),
         })),
       };
@@ -108,28 +101,21 @@ export async function analysesRoutes(app: FastifyInstance): Promise<void> {
         throw createHttpError(404, 'Analyse introuvable');
       }
 
-      // L'analyse peut être en 'pending' ou 'error' - dans ce cas certains champs
-      // sont null. Le response schema attend ces champs remplis, donc on échoue
-      // plutôt que renvoyer une réponse partiellement valide.
-      if (row.status !== 'success' || !row.signals || !row.scoreBreakdown || !row.techStack) {
+      if (row.pipelineStatus !== 'success' || !row.signals || !row.status || !row.recommendation) {
         throw createHttpError(
           409,
-          `Analyse status='${row.status}' - non disponible (errorMessage='${row.errorMessage ?? ''}')`,
+          `Analyse status='${row.pipelineStatus}' - non disponible (errorMessage='${row.errorMessage ?? ''}')`,
         );
       }
-
-      // Pages markdown non re-stockées en DB pour économiser le JSONB
-      // (cas pratique scope) - on renvoie [] et le front gère l'affichage.
-      const emptyPages: z.infer<typeof scrapedPageSchema>[] = [];
 
       return {
         id: row.id,
         url: row.url,
         domain: row.domain,
-        pages: emptyPages,
-        techStack: row.techStack,
+        pages: [], // markdowns non re-stockés en DB
         signals: row.signals,
-        score: row.scoreBreakdown,
+        status: row.status,
+        recommendation: row.recommendation,
         scrapedAt: row.createdAt.toISOString(),
         fromCache: false,
       };
