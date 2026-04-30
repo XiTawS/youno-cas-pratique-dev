@@ -56,6 +56,42 @@ pnpm --filter @apps/api dev   # http://localhost:3000
 
 Toutes les variables nécessaires sont documentées dans `.env.example` à la racine. Aucune valeur réelle n'est versionnée.
 
+## Déploiement
+
+Front sur Vercel, API sur Render, DB sur Neon, auth sur Clerk. Tout en free tier permanent, zéro CB.
+
+### Front — Vercel
+
+1. **Import du repo** depuis le dashboard Vercel (https://vercel.com/new)
+2. **Root directory** : `apps/web`
+3. **Framework preset** : Vite (auto-détecté)
+4. **Build command** : `cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @shared build && pnpm --filter @apps/web build`
+5. **Output directory** : `dist` (relatif à `apps/web`)
+6. **Install command** : laisser par défaut (Vercel détecte pnpm via `packageManager` dans `package.json` racine)
+7. **Environment variables** :
+   - `VITE_API_URL` : URL publique de l'API Render (à remplir après le 1er deploy Render)
+   - `CLERK_PUBLISHABLE_KEY` : `pk_test_...` (Vite l'expose au front via `define` dans `vite.config.ts`)
+
+### API — Render
+
+Render lit le `render.yaml` à la racine pour provisionner le service automatiquement.
+
+1. **New → Blueprint** depuis le dashboard Render (https://dashboard.render.com/blueprints)
+2. Sélectionner le repo GitHub
+3. Render lit `render.yaml`, confirme la création du service `youno-cas-pratique-api`
+4. Une fois créé, **renseigner les envs secrets** dans l'onglet Environment du service :
+   - `CLERK_SECRET_KEY` : `sk_test_...`
+   - `CLERK_PUBLISHABLE_KEY` : `pk_test_...`
+   - `AUTH_ALLOWED_EMAILS` : liste séparée par virgules
+   - `DATABASE_URL` : connection string Neon
+   - `CORS_ORIGIN` : URL Vercel (ex. `https://youno-cas-pratique.vercel.app`) — peut être une liste séparée par virgules pour autoriser plusieurs domaines (preview Vercel, custom domain, etc.)
+5. Render rebuild auto à chaque push sur `main`
+
+### Clerk — domaines autorisés
+
+Une fois le déploiement Vercel fait, ajouter le domaine Vercel à Clerk :
+Dashboard Clerk → Configure → **Domains** → ajouter `https://<projet>.vercel.app`
+
 ## État du projet
 
 Voir `progress/current.md` pour l'état vivant.

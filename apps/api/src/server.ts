@@ -1,3 +1,7 @@
+// MUST stay first - charge dotenv avant tout autre import qui lirait process.env
+// (notamment @clerk/fastify qui init son clerkClient singleton au moment de l'import).
+import './lib/load-env.js';
+
 import { clerkPlugin } from '@clerk/fastify';
 import { fastify, type FastifyError } from 'fastify';
 import {

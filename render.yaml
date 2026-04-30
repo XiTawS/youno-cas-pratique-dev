@@ -1,0 +1,41 @@
+# Render Blueprint - Infrastructure-as-Code pour le service API.
+# Quand tu connectes le repo à Render via "New Blueprint Instance",
+# Render lit ce fichier et provisionne automatiquement le service.
+# Doc : https://render.com/docs/blueprint-spec
+#
+# Les envs marquées sync:false sont à renseigner manuellement dans le
+# dashboard Render après création (secrets, ne doivent pas être versionnés).
+
+services:
+  - type: web
+    name: youno-cas-pratique-api
+    runtime: node
+    region: frankfurt # Proche du front Vercel CDN edge en Europe
+    plan: free
+    branch: main
+    healthCheckPath: /api/health
+    # Build : enable corepack pour pnpm, install deps, build @shared puis @apps/api
+    buildCommand: |
+      corepack enable
+      corepack prepare pnpm@9.12.0 --activate
+      pnpm install --frozen-lockfile
+      pnpm --filter @shared build
+      pnpm --filter @apps/api build
+    startCommand: pnpm --filter @apps/api start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PORT injecté automatiquement par Render (10000 par défaut)
+      # CORS_ORIGIN, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, AUTH_ALLOWED_EMAILS,
+      # DATABASE_URL : à renseigner dans le dashboard (sync:false évite que Render
+      # tente de générer/synchroniser ces valeurs depuis le Blueprint)
+      - key: CORS_ORIGIN
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: AUTH_ALLOWED_EMAILS
+        sync: false
+      - key: DATABASE_URL
+        sync: false

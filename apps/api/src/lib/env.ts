@@ -1,19 +1,25 @@
-import { config } from 'dotenv';
 import { z } from 'zod';
 
-// Charge les .env de la racine du monorepo (un seul jeu de fichiers pour API + front).
-// Convention Vite : .env (committable) puis .env.local (gitignored, secrets) qui override.
-// En prod (Render/Vercel), les envs sont injectées par la plateforme et les chemins
-// inexistants échouent silencieusement - process.env reste autoritatif.
-config({ path: '../../.env' });
-config({ path: '../../.env.local', override: true });
-
+// IMPORTANT : dotenv doit avoir été chargé via './load-env.js' AVANT cet import,
+// car certains SDK (notamment @clerk/fastify) initialisent des singletons à
+// l'import en lisant process.env. Voir apps/api/src/lib/load-env.ts.
+//
 // Validation Zod centralisée des variables d'environnement au démarrage.
 // Le serveur refuse de démarrer si une var requise manque (fail fast).
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
-  CORS_ORIGIN: z.string().url().default('http://localhost:5173'),
+  // Liste d'origines CORS séparées par virgules - permet local + prod simultanément.
+  CORS_ORIGIN: z
+    .string()
+    .default('http://localhost:5173')
+    .transform((s) =>
+      s
+        .split(',')
+        .map((u) => u.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.string().url()).min(1)),
 
   // Clerk - secret côté serveur, ne jamais exposer
   CLERK_SECRET_KEY: z.string().min(1, 'CLERK_SECRET_KEY est requis'),
