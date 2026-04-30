@@ -1,0 +1,294 @@
+# Decisions log
+
+Decisions importantes du projet au format ADR (Architecture Decision Record). Le **why** prime sur le **what** : la stack précise est dans `docs/02-stack.md`, ici on grave **pourquoi** les choix ont été faits face aux alternatives.
+
+Format strict :
+
+```
+ADR-NNN — Titre court — YYYY-MM-DD
+Status: accepted | superseded | deprecated
+Superseded-by: ADR-NNN  (si applicable)
+
+Contexte : ...
+Décision : ...
+Pourquoi : ...
+Conséquences acceptées : ...
+```
+
+---
+
+## ADR-001 — Architecture monorepo pnpm — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : le brief impose un seul repo GitHub. Le projet a un front (React) et une API (Node) qui doivent partager des types et schémas de validation. Trois packages prévus : `apps/web`, `apps/api`, `packages/shared`.
+
+**Décision** : monorepo avec pnpm workspaces vanilla, sans Turborepo ni Nx.
+
+**Pourquoi** :
+
+- 3 packages seulement → un task graph et un cache de build sont inutiles à cette taille.
+- pnpm workspaces est natif, sans config exotique.
+- Migration vers Turborepo possible plus tard sans casser l'existant.
+- Permet le partage trivial des schémas Zod via `@shared` (workspace dependency).
+
+**Conséquences acceptées** : pas de cache de build incrémental (acceptable pour le scope), pas de visualisation du dependency graph, conventions pnpm (workspace protocol) à respecter dans les `package.json`.
+
+---
+
+## ADR-002 — Framework API Fastify — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : choix d'un framework Node.js pour l'API. Trois candidats sérieux : Express (standard), Fastify (TS-first moderne), Hono (edge-ready).
+
+**Décision** : Fastify + `fastify-type-provider-zod`.
+
+**Pourquoi** :
+
+- Validation par schéma JSON intégrée nativement, couplée à Zod via `fastify-type-provider-zod`. Zéro code de validation à écrire pour l'URL d'entrée et les payloads.
+- Types TypeScript inférés depuis les schémas. `request.body`, `request.params` typés automatiquement.
+- ~2x plus rapide qu'Express, sérialisation accélérée via `fast-json-stringify` quand response schema déclaré.
+- Async/await natif (vs Express qui demande `express-async-errors` ou wrapper try/catch).
+- Logger Pino intégré, request-id auto par requête → debug du pipeline gratuit.
+- Plugins officiels (`@fastify/cors`, `@fastify/rate-limit`, `@fastify/helmet`) maintenus par l'équipe core, qualité homogène.
+
+Express aurait demandé plus de boilerplate. Hono aurait eu du sens sur Cloudflare Workers ou Vercel Edge, mais Render = Node classique → l'argument portabilité de Hono ne sert pas.
+
+**Conséquences acceptées** : moins de tutos / réponses Stack Overflow qu'Express (compensé par la qualité de la doc Fastify et l'assistance LLM).
+
+---
+
+## ADR-003 — Communication front / API : REST + Zod schemas partagés — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : monorepo pnpm avec front et API. Choix entre REST classique (universel mais types non partagés automatiquement) et tRPC (types end-to-end automatiques mais coupling fort).
+
+**Décision** : REST classique, schémas Zod centralisés dans `packages/shared`, importés côté API (validation Fastify) et côté front (validation TanStack Query après fetch).
+
+**Pourquoi** :
+
+- Sens produit Konsole = SaaS B2B qui exposera des APIs à ses utilisateurs et intégrations. REST raconte mieux ce contexte que tRPC, qui est un pattern interne front/back.
+- API consommable par tout client (mobile, autre service, Postman pour démo). tRPC verrouille sur le couplage TS.
+- Débuggage Network tab du navigateur → important en démo live. tRPC batche les appels et rend le Network tab moins lisible.
+- Adapter Fastify pour tRPC moins mature que la version Next.js → friction technique évitable.
+- Avec les schémas Zod partagés, on récupère ~80% du bénéfice tRPC (type safety end-to-end) sans le coupling.
+
+**Conséquences acceptées** : on écrit la couche fetch côté front à la main (~30 lignes via wrapper TanStack Query), pas de génération automatique des hooks.
+
+---
+
+## ADR-004 — Hébergement : Render pour l'API — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : besoin d'héberger l'API Node sur un service gratuit, accessible publiquement, depuis GitHub. Candidats : Render, Railway, Fly.io, ton VPS perso.
+
+**Décision** : Render free tier pour l'API.
+
+**Pourquoi** :
+
+- Free tier **permanent** (750 h / mois), pas d'expiration. La démo reste accessible plusieurs semaines après la restitution.
+- Brief explicitement "0 €" → exclut Railway (plus de free tier permanent depuis 2024, juste 5 $ de crédit one-time).
+- Render Blueprint (`render.yaml`) = Infrastructure-as-Code versionnée, plus mature pour le repo public.
+- Deploy GitHub trivial, support pnpm workspaces correct (Root Directory + Build Command).
+- Cold start (~30s après 15 min d'inactivité) mitigé par warm-up manuel avant démo, ou cron externe gratuit (UptimeRobot).
+
+**Conséquences acceptées** : cold start visible si l'app est inactive depuis > 15 min, RAM 512 MB qui exclut Chromium embarqué (voir ADR-008), build plus lent que Railway (1-3 min vs 30-90 s).
+
+---
+
+## ADR-005 — Base de données : Neon Postgres — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : besoin d'une DB pour persister les analyses. Render free n'a pas de disque persistant (filesystem éphémère), donc SQLite local fichier impossible. Candidats : Turso (SQLite hébergé), Neon Postgres, Supabase Postgres, Render Postgres.
+
+**Décision** : Neon Postgres + Drizzle ORM.
+
+**Pourquoi** :
+
+- Free tier permanent 3 GB, sans expiration ni pause définitive (vs Supabase qui pause les projets après 7 jours d'inactivité, et Render Postgres qui expire après 30 jours en free).
+- Postgres standard = ce qu'utiliserait Konsole en prod. Cohérent avec le contexte SaaS B2B, contrairement à Turso (libSQL) qui est moins courant dans cet écosystème.
+- Branching DB natif (création d'une branche DB par feature, comme Git). Talking point fort en restitution même si non exploité dans le scope MVP.
+- Auto-suspend Neon après quelques minutes d'inactivité avec wake-up en ~500ms : invisible en usage normal (vs pause définitive Supabase qui demande une réactivation manuelle).
+
+Drizzle plutôt que Prisma : TS-first sans génération de client, synergie avec Zod via `drizzle-zod`, runtime léger (cold start Render plus rapide), schéma directement en TS dans le repo.
+
+**Conséquences acceptées** : ~500 ms de cold start DB après inactivité, qui s'ajoute au cold start Render (négligeable en démo après warm-up). Dépendance à un service externe (vs DB locale).
+
+---
+
+## ADR-006 — Auth : Clerk (vs token statique, auth maison, alternatives) — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : besoin de protéger l'app pour éviter qu'un tiers crame le quota Anthropic Max via la clé OAuth liée à mon abonnement. Candidats : token statique partagé, magic link maison (jose + Resend), Clerk, Supabase Auth, WorkOS, Better Auth.
+
+**Décision** : Clerk avec magic link en méthode primaire + email/password en fallback, allowlist email configurée côté Clerk dashboard, double vérification applicative côté API via env `AUTH_ALLOWED_EMAILS`.
+
+**Pourquoi** :
+
+- Token statique : pas révocable individuellement, si leak (Loom public, partage à un collègue) → redéploiement obligatoire pour changer.
+- Magic link maison : ~2h45 de scope estimé = 35-55 % du temps total. Le brief insiste sur "MVP qui tourne > projet ambitieux qui plante" → mauvais arbitrage de cramer la moitié du scope sur l'auth quand le sens produit Konsole est le vrai sujet.
+- Supabase Auth : projets free pausés après 7 jours d'inactivité, risque concret pour la démo accessible long terme. Et mélanger Supabase Auth + Neon DB = setup bancal.
+- WorkOS : free tier généreux (1M MAU) mais on n'en utilisera jamais 1%, et la DX Clerk est supérieure pour ce scope.
+- Clerk : setup 30-45 min, magic link + password natifs, allowlist gérée dans le dashboard sans redéploiement, plugin Fastify officiel, free tier 10k MAU largement suffisant.
+
+**Conséquences acceptées** : dépendance à un service externe (Clerk down → login impossible, mais service très stable historiquement). "Clerk-specific JWT" = lock-in modéré, migration possible mais non triviale.
+
+---
+
+## ADR-007 — Scraping : Firecrawl en MVP, Playwright en cible prod — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** :
+
+- Render free tier limite la RAM à 512 MB.
+- Chromium en cours d'exécution consomme ~250-400 MB en idle.
+- Process Node Fastify ~80-150 MB.
+- Total au pic > 512 MB → risque OOM élevé sur requêtes concurrentes.
+- Fuites mémoire de Playwright/Puppeteer documentées même hors contraintes RAM (issues GitHub Microsoft/playwright).
+- Brief impose 0 € et déploiement cloud accessible.
+- Sites SaaS modernes en SPA (Linear, Cal.com) : `fetch + cheerio` simple ne suffit pas, le HTML initial est quasi vide.
+
+**Décision** :
+
+- **MVP** : Firecrawl Cloud free tier (500 credits one-time), via SDK `@mendable/firecrawl-js`. Endpoints `/map` (découverte des pages clés) + `/scrape` (markdown propre des pages sélectionnées).
+- **Cible prod** : migration vers Playwright (préféré à Puppeteer pour son support multi-navigateurs et son auto-wait) sur infrastructure dédiée (≥ 2 GB RAM, instance dédiée scraping ou worker queue). Mention explicite en restitution comme évolution prévue.
+
+**Pourquoi** :
+
+- Firecrawl résout immédiatement la contrainte mémoire de Render free (browser hosté chez eux) et fournit du markdown LLM-ready, ce qui maximise la qualité d'analyse Claude pour un MVP de 5-8 h.
+- Playwright en prod offre un coût marginal nul par scrape, un contrôle total (actions, anti-bot, timeouts custom), et l'absence de dépendance externe — trois critères clés pour un produit qui scale comme Konsole.
+
+**Conséquences acceptées** :
+
+- Le MVP dépend de la disponibilité Firecrawl et d'un quota fini (500 credits one-time, mais 5 % suffisent pour le scope).
+- En prod, l'équipe devra gérer une infra de scraping (orchestration, rotation de proxies, gestion mémoire), coût d'ingénierie assumé.
+- Pas d'abstraction `ScrapeService` dans le code MVP (over-engineering pour le scope) : la migration prod implique un refactor mineur du wrapper `services/scraping.ts`.
+
+---
+
+## ADR-008 — Sources d'enrichissement : choix et exclusions — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : le brief mentionne "APIs publiques : Clearbit, Hunter, BuiltWith, etc. (plans gratuits)". Veille technique nécessaire pour vérifier la disponibilité actuelle de ces APIs et identifier des alternatives.
+
+**Décision** : pipeline d'enrichissement composé de Firecrawl (scraping markdown), Wappalyzer (lib npm pour tech stack), et Claude (extraction qualitative via tool use). Aucune des APIs citées dans le brief n'est utilisée.
+
+**Pourquoi** :
+
+**Clearbit exclu** : sunsetée par HubSpot après l'acquisition de 2023. <br>Le 30 avril 2025, le Free Clearbit Platform, le Weekly Visitor Report, Clearbit Connect, le TAM Calculator, et l'intégration Slack gratuite ont été discontinués. La Logo API a été sunsetée le 1er décembre 2025. Aujourd'hui Clearbit s'appelle "Breeze Intelligence" dans HubSpot, accessible uniquement via une souscription HubSpot ($75 / mois minimum). Inutilisable pour le scope "0 €".
+
+**Hunter exclu** : email finder spécialisé. Hors scope (objectif = analyser un site, pas trouver l'email d'une personne).
+
+**BuiltWith API exclue** : free tier limité à ~1 lookup gratuit / jour. Inutilisable.
+
+**Wappalyzer (lib npm) inclus** : self-hosté, gratuit illimité, ~3000 technologies détectées via parsing du HTML brut. Apporte un signal factuel précis sur la stack tech, complémentaire à l'extraction LLM (qui peut halluciner sur ce sujet précis).
+
+**Talking point en restitution** : _"Le brief mentionnait Clearbit, Hunter, BuiltWith — j'ai constaté en faisant ma veille que Clearbit a été sunsetée par HubSpot en 2025, Hunter est un email finder hors de mon scope, et BuiltWith free tier est trop limité. J'ai donc construit ma propre stack : Firecrawl + Claude pour l'analyse qualitative, Wappalyzer en lib pour la détection tech stack. En prod chez Konsole, j'enrichirais avec WHOIS/DNS et potentiellement Apollo pour le firmographic."_
+
+**Conséquences acceptées** :
+
+- Pas de données firmographic structurées (taille employés exacte, levée de fonds, secteur normalisé). Tout est déduit par Claude depuis le contenu du site, ou laissé `null` si non détecté.
+- Pas de validation croisée des signaux entre plusieurs sources. Le pipeline est mono-source (le site).
+- Évolution v2 documentée : ajout de WHOIS/DNS lookups et éventuellement API firmographic en prod.
+
+---
+
+## ADR-009 — Extraction LLM : Claude Sonnet 4.6, 1 appel + tool use + temperature 0 — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : choix de la stratégie de prompting pour extraire les signaux GTM depuis le markdown Firecrawl. Trois axes à trancher : nombre d'appels (one-shot vs multi-shot vs pipeline étagé), format de sortie (JSON libre vs balises XML vs tool use), modèle.
+
+**Décision** :
+
+- **1 seul appel** par analyse (one-shot).
+- **Tool use** avec input schema dérivé du schema Zod `@shared/schemas/signals`. Claude est forcé de générer une réponse conforme.
+- **Temperature 0**.
+- **Modèle** : Claude Sonnet 4.6 (`claude-sonnet-4-6`).
+- **Prompt système court** avec instruction explicite "mets `null` plutôt que d'inventer".
+- **Validation Zod redondante** côté API en post-pro (double sécurité).
+
+**Pourquoi** :
+
+- One-shot suffit : le markdown Firecrawl d'une homepage + 2-4 pages clés fait ~3-15k tokens, Claude Sonnet 4.6 gère ça largement sans dégradation. Multi-shot en parallèle multiplierait le coût en tokens sans gain notable de qualité pour ce scope.
+- Tool use vs JSON libre : élimine le risque de JSON cassé / parsing fragile / retries. Pattern standard 2026 pour structured output avec Claude.
+- Temperature 0 : tâche d'extraction déterministe, mêmes inputs → même output, reproductible et debuggable.
+- Sonnet 4.6 plutôt que Opus 4.7 : surdimensionné pour cette tâche, et coûteux en tokens Max. Plutôt que Haiku 4.5 : risque d'hallucinations sur l'extraction qualitative.
+- Instruction "null > inventer" : limite drastiquement les hallucinations sur les signaux peu présents dans le contenu source.
+
+**Conséquences acceptées** :
+
+- Si le markdown source est partiel ou mal extrait, l'analyse en pâtit (garbage in, garbage out). Mitigé par la stratégie multi-pages (homepage + /pricing + /careers + /customers + /about quand disponibles).
+- Pas de fallback automatique sur un autre modèle si Claude Sonnet 4.6 indisponible. Mention possible en restitution comme évolution.
+
+---
+
+## ADR-010 — Scoring : "Maturité GTM", calcul hybride — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : le brief suggère "fit pour une boîte qui vend à des SaaS B2B" comme exemple de scoring, mais laisse le choix libre. Trois angles possibles : fit ICP B2B SaaS (générique), maturité GTM (alignée Konsole), buyer intent (signaux d'achat).
+
+**Décision** :
+
+- **Angle** : score "Maturité GTM" /100.
+- **Calcul** : hybride. Claude extrait les signaux factuels via tool use (qualitatif). Une formule déterministe en code calcule le score à partir des signaux booléens (transparence, reproductibilité).
+- **Affichage** : score numérique + détail des points par signal (auditable).
+
+**Pourquoi** :
+
+**Choix de l'angle "Maturité GTM" plutôt que "fit B2B SaaS"** :
+
+- Konsole vend du Revenue Engineering, donc un commercial Konsole qualifie ses prospects sur la question "ont-ils déjà construit leur GTM ?". Une boîte avec une GTM zéro n'est pas un bon prospect (trop tôt). Une boîte avec une GTM mature en a besoin pour scaler.
+- "Fit B2B SaaS" est l'angle générique attendu (et que tous les autres candidats vont sans doute implémenter).
+- "Maturité GTM" est différenciant et exactement aligné avec la qualification SDR de Konsole.
+
+**Choix du calcul hybride plutôt que score 100 % LLM ou 100 % règles** :
+
+- 100 % LLM : "boîte noire", non auditable, peut osciller subtilement entre runs.
+- 100 % règles déterministes sur du HTML brut : limité aux signaux booléens, rate les nuances qualitatives (ton, positionnement).
+- Hybride : Claude fait ce qu'il sait bien faire (extraction qualitative) + formule fait ce qu'elle sait bien faire (transparence). Le score est défendable en restitution avec la formule sous les yeux. L'utilisateur Konsole voit pourquoi son prospect est noté X / 100.
+
+**Formule v0** (à ajuster au moment du dev sur des cas réels) :
+
+| Signal                                                      | Poids   | Présent → |
+| ----------------------------------------------------------- | ------- | --------- |
+| Pricing page publique                                       | 15      | +15       |
+| CTA principal clair (demo / trial / signup)                 | 15      | +15       |
+| Page Customers / logos clients                              | 20      | +20       |
+| Blog actif (dernier post < 60 jours)                        | 15      | +15       |
+| Social proof externe (G2, ProductHunt, Capterra mentionnés) | 15      | +15       |
+| Newsletter / lead capture top funnel                        | 10      | +10       |
+| Postes sales/marketing ouverts                              | 10      | +10       |
+| **Total max**                                               | **100** |           |
+
+**Conséquences acceptées** :
+
+- Le score est calibré pour un ICP type "SaaS B2B avec produit mature". Si l'utilisateur Konsole a un autre ICP, le score est moins pertinent. Évolution v2 : scoring paramétrable par ICP.
+- Les pondérations sont arbitraires en v0, à ajuster avec du feedback. Pas de tuning automatique (out of scope).
+
+---
+
+## ADR-011 — Scoring optionnel — affichage simple — 2026-04-30
+
+**Status** : accepted
+
+**Contexte** : le brief dit "Optionnel mais apprécié" pour le scoring. Discussion initiale envisageait un affichage riche multi-scores (3 scores indépendants + tags + recommandation textuelle), mais le scope 5-8 h impose des arbitrages.
+
+**Décision** : un seul score "Maturité GTM" /100 avec détail des points par signal. Pas de multi-scores ni de système de tags ni de recommandation textuelle générée par LLM.
+
+**Pourquoi** :
+
+- Le scoring est optionnel selon le brief, donc le scope alloué doit rester contenu.
+- Un score unique avec détail transparent répond à 80 % du besoin produit.
+- Multi-scores + tags + recommandation = ~1h30 de scope supplémentaire, mieux investis sur la qualité de l'extraction LLM et la robustesse du pipeline.
+- Talking point en restitution : _"j'ai gardé un score simple mais auditable dans le scope MVP. La version multi-dimensionnelle (3 scores + tags + reco textuelle) est documentée comme évolution v2 dans IDEE.md."_
+
+**Conséquences acceptées** : moins "wow" en démo qu'un dashboard multi-scores. Mitigé par la qualité de l'extraction et du détail par signal.
