@@ -42,6 +42,17 @@ describe('analyzeRequestSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejette une chaîne sans TLD', () => {
+    // "hcbheuvguevigecge" → "https://hcbheuvguevigecge" : pas de point + TLD
+    const result = analyzeRequestSchema.safeParse({ url: 'hcbheuvguevigecge' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejette un TLD à 1 caractère', () => {
+    const result = analyzeRequestSchema.safeParse({ url: 'foo.x' });
+    expect(result.success).toBe(false);
+  });
+
   it('rejette un protocole autre que http(s)', () => {
     const result = analyzeRequestSchema.safeParse({ url: 'ftp://example.com' });
     expect(result.success).toBe(false);

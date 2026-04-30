@@ -134,15 +134,19 @@ export async function extractSignals({ url, pages, techStack }: ExtractInput): P
       tool_choice: { type: 'function', function: { name: TOOL_NAME } },
     });
   } catch (err) {
-    throw new ExtractionError(`Appel OpenRouter échoué: ${(err as Error).message}`);
+    console.error('OpenRouter call failed:', (err as Error).message);
+    throw new ExtractionError("L'analyse IA a échoué. Réessaie dans quelques instants.");
   }
 
   const message = response.choices[0]?.message;
   const toolCall = message?.tool_calls?.[0];
 
   if (!toolCall || toolCall.type !== 'function' || toolCall.function.name !== TOOL_NAME) {
+    console.error(
+      `LLM didn't call the tool (stop_reason=${response.choices[0]?.finish_reason ?? 'unknown'})`,
+    );
     throw new ExtractionError(
-      `Le LLM n'a pas appelé l'outil ${TOOL_NAME} (stop_reason=${response.choices[0]?.finish_reason ?? 'unknown'})`,
+      "L'analyse IA n'a pas pu structurer le résultat. Réessaie ou contacte l'admin.",
     );
   }
 
@@ -150,17 +154,20 @@ export async function extractSignals({ url, pages, techStack }: ExtractInput): P
   try {
     parsed = JSON.parse(toolCall.function.arguments);
   } catch {
-    throw new ExtractionError(
-      `JSON arguments du tool call invalide: ${toolCall.function.arguments.slice(0, 200)}`,
-    );
+    console.error('Invalid JSON in tool call:', toolCall.function.arguments.slice(0, 200));
+    throw new ExtractionError("La réponse de l'IA est mal formée. Réessaie.");
   }
 
   parsed = sanitizeBeforeParse(parsed);
 
   const result = SignalsSchema.safeParse(parsed);
   if (!result.success) {
+    console.error(
+      'LLM output does not match SignalsSchema:',
+      JSON.stringify(result.error.flatten().fieldErrors),
+    );
     throw new ExtractionError(
-      `Sortie LLM non conforme à SignalsSchema: ${JSON.stringify(result.error.flatten().fieldErrors)}`,
+      "La structure de l'analyse IA est invalide. Réessaie ou contacte l'admin.",
     );
   }
 

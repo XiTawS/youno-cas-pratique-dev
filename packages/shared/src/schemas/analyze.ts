@@ -4,7 +4,10 @@ import { AnalysisStatusSchema, SignalsSchema } from './signals.js';
 // Body de POST /api/analyze - une seule URL en input.
 // On accepte la forme nue ("tec6.fr", "www.stripe.com/pricing") et on préfixe
 // automatiquement https:// si absent. Pas d'URLs IP, pas de schéma autre.
-const HTTP_OR_HTTPS_URL = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
+//
+// Regex validation : exige au moins un point + un TLD alphabétique de 2+ chars
+// pour rejeter "https://hcbheuvguevigecge" (pas de TLD = pas un domaine plausible).
+const HTTP_OR_HTTPS_URL = /^https?:\/\/([a-z0-9-]+\.)+[a-z]{2,}(\/.*)?$/i;
 
 export const analyzeRequestSchema = z.object({
   url: z

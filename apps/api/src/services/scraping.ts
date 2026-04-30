@@ -27,6 +27,37 @@ interface ScrapeResult {
   domain: string;
 }
 
+// Map les erreurs techniques Firecrawl/réseau vers un message FR user-friendly.
+// L'utilisateur final ne voit jamais "Firecrawl /map failed" ou un stacktrace.
+// Le détail technique reste dans les logs Pino côté serveur.
+function userFriendlyScrapingMessage(rawError: string): string {
+  const lower = rawError.toLowerCase();
+  if (lower.includes('enotfound') || lower.includes('dns')) {
+    return "Ce domaine n'existe pas ou n'est pas joignable. Vérifie l'URL et réessaie.";
+  }
+  if (lower.includes('timeout') || lower.includes('timed out') || lower.includes('etimedout')) {
+    return 'Le site met trop de temps à répondre. Réessaie dans quelques minutes.';
+  }
+  if (
+    lower.includes('429') ||
+    lower.includes('rate limit') ||
+    lower.includes('too many requests')
+  ) {
+    return 'Trop de requêtes simultanées. Patiente une minute avant de relancer une analyse.';
+  }
+  if (lower.includes('401') || lower.includes('403') || lower.includes('forbidden')) {
+    return "Le site bloque les outils d'analyse automatique. Impossible de l'analyser.";
+  }
+  if (lower.includes('402') || lower.includes('quota') || lower.includes('credits')) {
+    return "Quota d'analyse temporairement atteint. Réessaie plus tard.";
+  }
+  if (lower.includes('404') || lower.includes('not found')) {
+    return "Le site est introuvable. Vérifie l'URL et réessaie.";
+  }
+  // Fallback générique - on évite d'exposer "Firecrawl" et les détails techniques
+  return "L'analyse de ce site a échoué. Le domaine est-il public et accessible ?";
+}
+
 // Pipeline scraping complet : map → sélection → scrape parallèle.
 // Erreurs réseau ou quota : ScrapingError remonte au handler Fastify.
 export async function scrapeUrl(rootUrl: string): Promise<ScrapeResult> {
@@ -40,23 +71,23 @@ export async function scrapeUrl(rootUrl: string): Promise<ScrapeResult> {
       links?: { url: string }[];
     };
   } catch (err) {
-    throw new ScrapingError(`Firecrawl /map a échoué pour ${rootUrl}: ${(err as Error).message}`);
+    const raw = (err as Error).message;
+    // Log brut côté serveur pour debug, message friendly côté user
+    console.error(`Firecrawl /map error for ${rootUrl}:`, raw);
+    throw new ScrapingError(userFriendlyScrapingMessage(raw));
   }
 
   const links = (mapped.links ?? []).map((l) => l.url).filter(Boolean);
   if (links.length === 0) {
     throw new ScrapingError(
-      `Aucune page découverte pour ${rootUrl} - le domaine est-il accessible publiquement ?`,
+      "Ce site est inaccessible ou ne renvoie aucune page publique. Vérifie l'URL.",
       404,
     );
   }
 
   const pagesToScrape = pickPagesToScrape(rootUrl, links);
   if (pagesToScrape.length === 0) {
-    throw new ScrapingError(
-      `Aucune page du domaine ${url.host} dans les résultats /map (${links.length} liens hors-domaine)`,
-      404,
-    );
+    throw new ScrapingError("Aucune page du site n'a pu être identifiée pour l'analyse.", 404);
   }
 
   // 2. Scrape parallèle - on tolère les échecs individuels (ex. page 403/404)
@@ -86,7 +117,11 @@ export async function scrapeUrl(rootUrl: string): Promise<ScrapeResult> {
       .map((r) => (r.reason as Error).message)
       .slice(0, 3)
       .join(' ; ');
-    throw new ScrapingError(`Aucune page scrappée avec succès. Causes: ${reasons}`, 502);
+    console.error(`All scrape attempts failed for ${rootUrl}:`, reasons);
+    throw new ScrapingError(
+      "Le contenu de ce site n'a pas pu être récupéré. Le site bloque peut-être les outils d'analyse.",
+      502,
+    );
   }
 
   return { pages, domain };
