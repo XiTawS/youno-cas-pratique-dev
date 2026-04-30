@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: hsl(0 0% 100%);
   --color-foreground: hsl(0 0% 3.9%);
@@ -21,6 +23,26 @@
   --radius: 0.5rem;
 }
 
+.dark {
+  --color-background: hsl(0 0% 7%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(0 0% 9%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(0 0% 98%);
+  --color-primary-foreground: hsl(0 0% 9%);
+  --color-secondary: hsl(0 0% 14.9%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(0 0% 14.9%);
+  --color-muted-foreground: hsl(0 0% 63.9%);
+  --color-accent: hsl(0 0% 14.9%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  --color-destructive: hsl(0 62.8% 30.6%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(0 0% 18%);
+  --color-input: hsl(0 0% 18%);
+  --color-ring: hsl(0 0% 83.1%);
+}
+
 @layer base {
   body {
     background-color: var(--color-background);
@@ -29,6 +51,65 @@
       ui-sans-serif,
       system-ui,
       -apple-system,
+      'Inter',
       sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Anim utilitaires Tailwind 4 (data-[state=open]:animate-in etc.) */
+  @keyframes fade-in-0 {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out-0 {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes zoom-in-95 {
+    from {
+      transform: translate(-50%, -50%) scale(0.95);
+      opacity: 0;
+    }
+  }
+  @keyframes zoom-out-95 {
+    to {
+      transform: translate(-50%, -50%) scale(0.95);
+      opacity: 0;
+    }
+  }
+  @keyframes slide-in-from-left {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+
+  .animate-in {
+    animation-duration: 200ms;
+    animation-fill-mode: both;
+  }
+  .animate-out {
+    animation-duration: 150ms;
+    animation-fill-mode: both;
+  }
+  .fade-in-0 {
+    animation-name: fade-in-0;
+  }
+  .fade-out-0 {
+    animation-name: fade-out-0;
+  }
+  .zoom-in-95 {
+    animation-name: zoom-in-95;
+  }
+  .zoom-out-95 {
+    animation-name: zoom-out-95;
+  }
+  .slide-in-from-left {
+    animation-name: slide-in-from-left;
+  }
+  .duration-200 {
+    animation-duration: 200ms;
   }
 }

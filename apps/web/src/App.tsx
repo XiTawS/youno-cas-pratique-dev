@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { AppShell } from '@/components/AppShell';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { NewAnalysisDialog } from '@/components/NewAnalysisDialog';
 import { RequireAuth } from '@/components/RequireAuth';
 import { Analysis } from '@/pages/Analysis';
 import { History } from '@/pages/History';
@@ -9,7 +12,6 @@ import { Home } from '@/pages/Home';
 import { SignIn } from '@/pages/SignIn';
 
 // QueryClient unique pour toute l'app.
-// Defaults conservateurs : 1 retry, staleTime 30s pour éviter les refetch superflus.
 // /api/analyze ne doit jamais retry sur erreur - écrasement de credits Firecrawl.
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,38 +30,66 @@ export function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <Home />
-                </RequireAuth>
-              }
-            />
-            {/* Path Clerk avec wildcard pour gérer les sous-routes du flow (verify, factor-one, etc.) */}
-            {/* Pas de route /sign-up : les comptes sont créés par admin via Clerk dashboard. */}
-            <Route path="/sign-in/*" element={<SignIn />} />
-            <Route
-              path="/analysis/:id"
-              element={
-                <RequireAuth>
-                  <Analysis />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/history"
-              element={
-                <RequireAuth>
-                  <History />
-                </RequireAuth>
-              }
-            />
-          </Routes>
+          <AppRoutes />
         </BrowserRouter>
         <Toaster position="top-right" richColors closeButton />
       </QueryClientProvider>
     </ErrorBoundary>
   );
+}
+
+// Routes + état global du dialog "nouvelle analyse" (déclenchable depuis la sidebar).
+function AppRoutes() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const openDialog = () => setDialogOpen(true);
+
+  return (
+    <>
+      <Routes>
+        {/* /sign-in/* hors AppShell (pas de sidebar avant login) */}
+        <Route path="/sign-in/*" element={<SignIn />} />
+
+        {/* Routes auth wrappées dans le shell + RequireAuth */}
+        <Route
+          path="/"
+          element={
+            <RequireAuth>
+              <Shell onNewAnalysis={openDialog}>
+                <Home onNewAnalysis={openDialog} />
+              </Shell>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <RequireAuth>
+              <Shell onNewAnalysis={openDialog}>
+                <History />
+              </Shell>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/analysis/:id"
+          element={
+            <RequireAuth>
+              <Shell onNewAnalysis={openDialog}>
+                <Analysis />
+              </Shell>
+            </RequireAuth>
+          }
+        />
+      </Routes>
+
+      <NewAnalysisDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+    </>
+  );
+}
+
+// Wrapper Shell qui ne s'applique pas en mode signin (utilisé via routing).
+function Shell({ children, onNewAnalysis }: { children: ReactNode; onNewAnalysis: () => void }) {
+  const location = useLocation();
+  if (location.pathname.startsWith('/sign-in')) return <>{children}</>;
+  return <AppShell onNewAnalysis={onNewAnalysis}>{children}</AppShell>;
 }
