@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { gtmSignalsSchema, scoreBreakdownSchema } from './signals.js';
+import { AnalysisStatusSchema, SignalsSchema } from './signals.js';
 
 // Body de POST /api/analyze - une seule URL en input.
 // On force https://www.example.com style. Pas d'URLs IP, pas de schéma autre.
@@ -28,9 +28,14 @@ export const scrapedPageSchema = z.object({
 
 export type ScrapedPage = z.infer<typeof scrapedPageSchema>;
 
-// Réponse de POST /api/analyze (J3 : signals + score persistés en DB).
+// Pour les statuts opérationnels du pipeline (pas le statut qualitatif de
+// l'analyse — voir AnalysisStatus dans signals.ts).
+export const pipelineStatusSchema = z.enum(['pending', 'success', 'error']);
+export type PipelineStatus = z.infer<typeof pipelineStatusSchema>;
+
+// Réponse de POST /api/analyze - voir ADR-013 pour la refonte status / recommendation.
 export const analyzeResponseSchema = z.object({
-  // ID persisté en DB - sert pour /analysis/:id côté front (page Analysis J4).
+  // ID persisté en DB - sert pour /analysis/:id côté front.
   id: z.string().uuid(),
   url: z.string().url(),
   // Domaine extrait pour cache et lookup futur (ex. "stripe.com" depuis "https://stripe.com/pricing").
@@ -38,12 +43,13 @@ export const analyzeResponseSchema = z.object({
   // pages peut être vide : cache hit (24h) et GET /api/analyses/:id ne re-stockent
   // pas le markdown en DB pour économiser le JSONB. Front gère l'absence.
   pages: z.array(scrapedPageSchema),
-  // Liste de noms de technologies détectées par Wappalyzer (ex. "React", "Stripe", "Google Analytics").
-  techStack: z.array(z.string()),
-  // Signaux GTM extraits par le LLM (3 axes + métadonnées).
-  signals: gtmSignalsSchema,
-  // Score Maturité GTM /100 + breakdown des 4 buckets.
-  score: scoreBreakdownSchema,
+  // Signaux factuels extraits par le LLM (entreprise, sales motion, maturité, ICP, recommandation).
+  signals: SignalsSchema,
+  // Statut qualitatif calculé en code à partir des signaux maturity.
+  status: AnalysisStatusSchema,
+  // Recommandation actionnable générée par le LLM (dupliquée hors signals
+  // pour query SQL facile et lecture front sans descendre dans le JSONB).
+  recommendation: z.string(),
   // Timestamp ISO 8601 du début du scraping côté serveur.
   scrapedAt: z.string().datetime(),
   // true si la réponse vient du cache 24h (analyse réutilisée), false sinon.
@@ -52,14 +58,15 @@ export const analyzeResponseSchema = z.object({
 
 export type AnalyzeResponse = z.infer<typeof analyzeResponseSchema>;
 
-// Item compact pour la liste history (pas de pages markdown ni signals complets,
-// juste de quoi afficher la card dans la liste).
+// Item compact pour la liste history.
 export const analysisListItemSchema = z.object({
   id: z.string().uuid(),
   url: z.string().url(),
   domain: z.string().min(1),
-  status: z.enum(['pending', 'success', 'error']),
-  scoreMaturity: z.number().int().min(0).max(100).nullable(),
+  // Statut opérationnel du pipeline (pending / success / error).
+  pipelineStatus: pipelineStatusSchema,
+  // Statut qualitatif - null tant que l'analyse n'est pas en success.
+  status: AnalysisStatusSchema.nullable(),
   errorMessage: z.string().nullable(),
   createdAt: z.string().datetime(),
 });

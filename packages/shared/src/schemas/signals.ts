@@ -1,133 +1,112 @@
 import { z } from 'zod';
 
-// Schéma des signaux GTM extraits par Claude depuis le markdown + tech stack.
-//
-// Source de vérité unique : utilisé pour
-// - le tool input schema Claude (extraction forcée conforme)
+// Source de vérité unique des signaux extraits par le LLM + statut qualitatif.
+// Utilisé pour :
+// - le tool input schema OpenRouter (extraction structurée forcée)
 // - la validation runtime côté API après l'appel
 // - la persistance JSONB en DB (table `analyses.signals`)
 // - les types côté front
 //
-// Toute modif casse 4 endroits, valider l'impact avant.
+// Toute modif casse 4 endroits, valider l'impact avant. Voir ADR-013.
 
-// Axe 1 : comment ils vendent (sales motion)
-// → guide la stratégie d'approche du SDR Konsole
-export const salesMotionSchema = z.object({
-  type: z
-    .enum(['self_serve', 'sales_led', 'hybrid', 'unknown'])
+// Bloc "qui est cette boîte" - identification de surface.
+const companySchema = z.object({
+  name: z.string().describe("Nom commercial de l'entreprise tel qu'affiché sur le site."),
+  description: z
+    .string()
+    .describe('Description courte (1-2 phrases) de ce que fait la boîte, en français.'),
+  sector: z
+    .string()
+    .nullable()
+    .describe('Secteur d\'activité court (ex. "fintech", "MarTech B2B"). null si pas clair.'),
+});
+
+// Bloc "comment ils vendent" - sales motion.
+const salesMotionSchema = z.object({
+  pricingPublic: z.boolean().describe('true si une page /pricing affiche des tarifs publics.'),
+  primaryCta: z
+    .enum(['signup', 'demo', 'contact_sales', 'mixed'])
     .describe(
-      "Comment l'entreprise vend SON PRODUIT. self_serve = signup direct sans contact commercial. sales_led = obligation de contact commercial / demo avant achat. hybrid = les deux options coexistent. unknown si non déterminable.",
+      "Call-to-action principal de la home. signup = inscription directe (PLG). demo = book a demo. contact_sales = parler au commercial. mixed = plusieurs CTA d'égale importance.",
     ),
-  evidence: z
+  freeTrial: z.boolean().describe('true si free trial ou tier gratuit explicitement mentionné.'),
+  model: z
+    .enum(['PLG', 'Sales-led', 'Hybrid'])
+    .describe(
+      'Modèle de vente. PLG = Product-Led Growth (self-serve dominant). Sales-led = passage commercial obligatoire. Hybrid = les deux coexistent réellement.',
+    ),
+});
+
+// Bloc "maturité commerciale" - signaux factuels de structuration GTM.
+const maturitySchema = z.object({
+  clientLogosCount: z
+    .number()
+    .int()
+    .nullable()
+    .describe('Nombre de logos clients visibles sur la home / /customers. null si non comptable.'),
+  customersPage: z
+    .boolean()
+    .describe('true si une page /customers ou /case-studies dédiée existe.'),
+  blogActive: z.boolean().describe('true si un blog avec contenu récent (< 60 jours) est visible.'),
+  blogLastPostHint: z
     .string()
     .nullable()
     .describe(
-      'Citation textuelle (max 200 chars) du markdown qui justifie le type. null si pas trouvé.',
+      'Indice sur la fraîcheur du blog ("avril 2026", "il y a 2 semaines"). null si pas trouvé.',
     ),
-  pricingPubliclyVisible: z.boolean().describe('true si une page /pricing affiche des tarifs.'),
-  freeTrialOrFreemium: z.boolean().describe('true si free trial ou tier gratuit mentionné.'),
-  bookDemoOrTalkToSales: z.boolean().describe('true si CTA "Book a demo" ou "Contact sales".'),
+  salesMarketingHiring: z
+    .boolean()
+    .describe('true si /careers ou /jobs liste au moins un poste sales / marketing / growth.'),
 });
 
-export type SalesMotion = z.infer<typeof salesMotionSchema>;
-
-// Axe 2 : signaux de croissance / d'achat
-// → guide le timing de la prospection
-export const growthSignalsSchema = z.object({
-  hiringActively: z.boolean().describe('true si page /careers ou /jobs vue avec ≥1 poste ouvert.'),
-  hiringRoles: z
-    .array(z.string())
-    .max(30)
-    .describe('Intitulés exacts vus sur /careers (max 30). [] si pas de careers vu.'),
-  recentNewsOrLaunches: z
-    .array(z.string())
-    .max(15)
-    .describe('News / launches récents depuis /blog ou home (max 15). [] si rien de pertinent.'),
-  customerLogosCount: z
-    .number()
-    .int()
-    .min(0)
-    .max(100)
-    .describe('Nombre de logos clients visibles sur home / /customers. 0 si rien vu.'),
-  rolesIndicatingGtm: z
-    .array(z.enum(['sales', 'marketing', 'rev_ops', 'sdr_bdr', 'customer_success', 'growth']))
+// Bloc "cible visée" - ICP fit.
+const icpSchema = z.object({
+  segment: z
+    .enum(['SMB', 'Mid-market', 'Enterprise', 'Mixed'])
     .describe(
-      "Catégories de roles GTM trouvées dans les hires - signal qu'ils investissent en GTM. [] si aucun.",
-    ),
-});
-
-export type GrowthSignals = z.infer<typeof growthSignalsSchema>;
-
-// Axe 3 : ICP fit (à qui ils vendent)
-// → guide la qualification "est-ce que je perds mon temps ?"
-export const icpFitSchema = z.object({
-  targetSegment: z
-    .enum(['smb', 'mid_market', 'enterprise', 'developer', 'consumer', 'unknown'])
-    .describe(
-      "Segment de TAILLE D'ENTREPRISE ciblé. smb = small business. mid_market = entreprises moyennes. enterprise = grandes entreprises (Fortune 500 etc.). developer = produit pour devs individuels (DX-first). consumer = B2C. unknown si non déterminable. ATTENTION : ce n'est PAS la même chose que sales motion (pas de valeur 'hybrid' ici).",
+      "Segment de taille d'entreprise ciblé. SMB = petites entreprises. Mid-market = moyennes. Enterprise = grands comptes (Fortune 500). Mixed = plusieurs segments adressés explicitement.",
     ),
   targetRoles: z
     .array(z.string())
-    .max(20)
-    .describe('Rôles cibles libres (ex. "Product Managers", "Engineers", "Founders").'),
-  industryFocus: z
+    .max(5)
+    .describe(
+      'Rôles ciblés (ex. "Product Managers", "Engineering Leaders"). Max 5. [] si non explicite.',
+    ),
+  verticals: z
     .array(z.string())
-    .max(20)
-    .describe('Verticals si mentionnés (ex. "SaaS", "fintech"). [] si non mentionné.'),
-  geographicFocus: z
-    .array(z.string())
-    .max(20)
-    .describe('Géographies si mentionnées (ex. "US", "Europe"). [] si non mentionné.'),
+    .max(5)
+    .describe(
+      'Verticales si explicitement mentionnées (ex. "fintech", "healthcare"). Max 5. [] sinon.',
+    ),
+  geography: z
+    .string()
+    .nullable()
+    .describe('Géographie cible si explicite ("US-only", "Europe", "Global"). null sinon.'),
 });
 
-export type IcpFit = z.infer<typeof icpFitSchema>;
-
-// Schema agrégé - ce que le LLM doit produire en un seul tool call.
-export const gtmSignalsSchema = z.object({
-  salesMotion: salesMotionSchema.describe('AXE 1 : comment cette entreprise vend son produit.'),
-  growthSignals: growthSignalsSchema.describe('AXE 2 : signaux de croissance / momentum / hiring.'),
-  icpFit: icpFitSchema.describe(
-    'AXE 3 : à QUI cette entreprise vend (taille, rôles, verticals). NE PAS confondre avec axe 1.',
-  ),
-  extractionConfidence: z
-    .enum(['high', 'medium', 'low'])
+// Schema agrégé - sortie complète d'un appel LLM.
+export const SignalsSchema = z.object({
+  company: companySchema.describe('Identification de la boîte.'),
+  salesMotion: salesMotionSchema.describe('Comment cette boîte vend son produit.'),
+  maturity: maturitySchema.describe('Signaux factuels de maturité commerciale.'),
+  icp: icpSchema.describe('À qui cette boîte vend (taille, rôles, verticales, géo).'),
+  techStack: z
+    .array(z.string())
     .describe(
-      'Auto-évaluation : high si markdown riche, medium si partiel, low si très pauvre ou bloqué.',
+      'Liste des technos détectées par Wappalyzer côté serveur. Le LLM la recopie telle quelle.',
     ),
-  notesForSdr: z
+  recommendation: z
     .string()
     .max(2000)
     .describe(
-      "Résumé actionnable pour le SDR en 1-3 phrases (ex. 'Hiring 5 SDRs en EMEA, signal d'expansion fort. Sales-led, ICP enterprise.'). FR ou EN. 2000 chars max.",
+      "Recommandation actionnable pour un commercial qui prospecterait cette boîte. 2-3 phrases max. Indique l'approche commerciale (démo, free trial, contact sales) et un angle d'accroche concret basé sur les signaux les plus saillants.",
     ),
 });
 
-export type GtmSignals = z.infer<typeof gtmSignalsSchema>;
+export type Signals = z.infer<typeof SignalsSchema>;
 
-// Détail du score Maturité GTM (4 buckets) - retourné avec le score total
-// pour transparence et auditabilité (talking point en restitution).
-export const scoreBreakdownSchema = z.object({
-  salesMotion: z.object({
-    earned: z.number().int().min(0).max(20),
-    max: z.literal(20),
-    reasons: z.array(z.string()),
-  }),
-  growth: z.object({
-    earned: z.number().int().min(0).max(40),
-    max: z.literal(40),
-    reasons: z.array(z.string()),
-  }),
-  icpFit: z.object({
-    earned: z.number().int().min(0).max(25),
-    max: z.literal(25),
-    reasons: z.array(z.string()),
-  }),
-  techStack: z.object({
-    earned: z.number().int().min(0).max(15),
-    max: z.literal(15),
-    reasons: z.array(z.string()),
-  }),
-  total: z.number().int().min(0).max(100),
-});
+// Statut qualitatif - calculé en code (pas par le LLM) à partir des signaux maturity.
+// 4 niveaux ordonnés du moins mature au plus mature. Voir ADR-013.
+export const AnalysisStatusSchema = z.enum(['too_early', 'to_watch', 'good_timing', 'mature']);
 
-export type ScoreBreakdown = z.infer<typeof scoreBreakdownSchema>;
+export type AnalysisStatus = z.infer<typeof AnalysisStatusSchema>;
