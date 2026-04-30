@@ -35,7 +35,9 @@ export const analyzeResponseSchema = z.object({
   url: z.string().url(),
   // Domaine extrait pour cache et lookup futur (ex. "stripe.com" depuis "https://stripe.com/pricing").
   domain: z.string().min(1),
-  pages: z.array(scrapedPageSchema).min(1),
+  // pages peut être vide : cache hit (24h) et GET /api/analyses/:id ne re-stockent
+  // pas le markdown en DB pour économiser le JSONB. Front gère l'absence.
+  pages: z.array(scrapedPageSchema),
   // Liste de noms de technologies détectées par Wappalyzer (ex. "React", "Stripe", "Google Analytics").
   techStack: z.array(z.string()),
   // Signaux GTM extraits par le LLM (3 axes + métadonnées).
