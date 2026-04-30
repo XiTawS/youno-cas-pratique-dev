@@ -19,9 +19,7 @@ import { Label } from '@/components/ui/label';
 export function SignIn() {
   const { isLoaded, signIn, setActive } = useSignIn();
   const navigate = useNavigate();
-  // identifier accepte indifféremment l'username ou l'email - Clerk résout les
-  // deux selon ce qui est configuré comme méthode de sign-in dans le dashboard.
-  const [identifier, setIdentifier] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, setPending] = useState(false);
@@ -33,12 +31,8 @@ export function SignIn() {
     setPending(true);
     setError(null);
     try {
-      // Si l'identifier ressemble à un email on le lowercase, sinon on garde tel quel
-      // (les usernames Clerk peuvent être case-sensitive selon la config).
-      const trimmed = identifier.trim();
-      const looksLikeEmail = trimmed.includes('@');
       const result = await signIn.create({
-        identifier: looksLikeEmail ? trimmed.toLowerCase() : trimmed,
+        identifier: username.trim(),
         password,
       });
 
@@ -76,22 +70,22 @@ export function SignIn() {
           </div>
           <CardTitle className="text-2xl">Connexion</CardTitle>
           <CardDescription>
-            Identifiants (username ou email) transmis par l'admin lors de la création de ton compte.
+            Username et mot de passe transmis par l'admin lors de la création de ton compte.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Username ou email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="identifier"
+                id="username"
                 type="text"
-                placeholder="prenomnom ou prenom.nom@youno.fr"
+                placeholder="prenomnom"
                 autoComplete="username"
                 required
                 disabled={isPending}
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
 
