@@ -126,8 +126,37 @@ export async function extractSignals({ url, pages, techStack }: ExtractInput): P
     );
   }
 
-  // Validation Zod redondante - si le LLM a baroqué le schema malgré le tool use,
-  // on échoue ici plutôt que d'écrire de la merde en DB.
+  // Sanitize défensive : Sonnet 4.5 peut dépasser les .max() malgré le tool schema
+  // (il voit le JSON schema mais ne respecte pas toujours les bornes). On tronque
+  // avant la validation Zod pour éviter de planter sur des dépassements bénins.
+  if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj.notesForSdr === 'string' && obj.notesForSdr.length > 2000) {
+      obj.notesForSdr = obj.notesForSdr.slice(0, 2000);
+    }
+    const truncate = (path: string[], max: number): void => {
+      let cursor: Record<string, unknown> | undefined = obj;
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+        if (key === undefined || cursor === undefined) return;
+        const next = cursor[key];
+        if (!next || typeof next !== 'object') return;
+        cursor = next as Record<string, unknown>;
+      }
+      const lastKey = path[path.length - 1];
+      if (cursor && lastKey !== undefined && Array.isArray(cursor[lastKey])) {
+        cursor[lastKey] = (cursor[lastKey] as unknown[]).slice(0, max);
+      }
+    };
+    truncate(['growthSignals', 'hiringRoles'], 30);
+    truncate(['growthSignals', 'recentNewsOrLaunches'], 15);
+    truncate(['icpFit', 'targetRoles'], 20);
+    truncate(['icpFit', 'industryFocus'], 20);
+    truncate(['icpFit', 'geographicFocus'], 20);
+  }
+
+  // Validation Zod redondante - si le LLM a baroqué le schema malgré le tool use
+  // ET la sanitize, on échoue ici plutôt que d'écrire de la merde en DB.
   const result = gtmSignalsSchema.safeParse(parsed);
   if (!result.success) {
     throw new ExtractionError(

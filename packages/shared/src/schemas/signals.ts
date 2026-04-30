@@ -37,12 +37,12 @@ export const growthSignalsSchema = z.object({
   hiringActively: z.boolean().describe('true si page /careers ou /jobs vue avec ≥1 poste ouvert.'),
   hiringRoles: z
     .array(z.string())
-    .max(10)
-    .describe('Intitulés exacts vus sur /careers (max 10). [] si pas de careers vu.'),
+    .max(30)
+    .describe('Intitulés exacts vus sur /careers (max 30). [] si pas de careers vu.'),
   recentNewsOrLaunches: z
     .array(z.string())
-    .max(5)
-    .describe('News / launches récents depuis /blog ou home (max 5). [] si rien de pertinent.'),
+    .max(15)
+    .describe('News / launches récents depuis /blog ou home (max 15). [] si rien de pertinent.'),
   customerLogosCount: z
     .number()
     .int()
@@ -68,15 +68,15 @@ export const icpFitSchema = z.object({
     ),
   targetRoles: z
     .array(z.string())
-    .max(10)
+    .max(20)
     .describe('Rôles cibles libres (ex. "Product Managers", "Engineers", "Founders").'),
   industryFocus: z
     .array(z.string())
-    .max(10)
+    .max(20)
     .describe('Verticals si mentionnés (ex. "SaaS", "fintech"). [] si non mentionné.'),
   geographicFocus: z
     .array(z.string())
-    .max(10)
+    .max(20)
     .describe('Géographies si mentionnées (ex. "US", "Europe"). [] si non mentionné.'),
 });
 
@@ -96,9 +96,9 @@ export const gtmSignalsSchema = z.object({
     ),
   notesForSdr: z
     .string()
-    .max(500)
+    .max(2000)
     .describe(
-      "Résumé actionnable pour le SDR en 1-3 phrases (ex. 'Hiring 5 SDRs en EMEA, signal d'expansion fort. Sales-led, ICP enterprise.'). FR ou EN.",
+      "Résumé actionnable pour le SDR en 1-3 phrases (ex. 'Hiring 5 SDRs en EMEA, signal d'expansion fort. Sales-led, ICP enterprise.'). FR ou EN. 2000 chars max.",
     ),
 });
 
