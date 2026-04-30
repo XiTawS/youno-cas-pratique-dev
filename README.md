@@ -65,7 +65,7 @@ Front sur Vercel, API sur Render, DB sur Neon, auth sur Clerk. Tout en free tier
 1. **Import du repo** depuis le dashboard Vercel (https://vercel.com/new)
 2. **Root directory** : `apps/web`
 3. **Framework preset** : Vite (auto-détecté)
-4. **Build command** : `cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @shared build && pnpm --filter @apps/web build`
+4. **Build command** : `cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @youno/shared build && pnpm --filter @apps/web build`
 5. **Output directory** : `dist` (relatif à `apps/web`)
 6. **Install command** : laisser par défaut (Vercel détecte pnpm via `packageManager` dans `package.json` racine)
 7. **Environment variables** :

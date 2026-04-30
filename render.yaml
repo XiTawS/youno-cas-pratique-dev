@@ -14,12 +14,14 @@ services:
     plan: free
     branch: main
     healthCheckPath: /api/health
-    # Build : enable corepack pour pnpm, install deps, build @shared puis @apps/api
+    # Build : enable corepack pour pnpm, install deps (--prod=false force l'install
+    # des devDependencies type @types/node + typescript nécessaires au build),
+    # puis build @youno/shared puis @apps/api (apps/api consomme la dist du shared)
     buildCommand: |
       corepack enable
       corepack prepare pnpm@9.12.0 --activate
-      pnpm install --frozen-lockfile
-      pnpm --filter @shared build
+      pnpm install --frozen-lockfile --prod=false
+      pnpm --filter @youno/shared build
       pnpm --filter @apps/api build
     startCommand: pnpm --filter @apps/api start
     envVars:

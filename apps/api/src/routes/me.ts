@@ -1,5 +1,5 @@
 import { getAuth } from '@clerk/fastify';
-import { meResponseSchema } from '@shared/schemas/me';
+import { meResponseSchema } from '@youno/shared/schemas/me';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 

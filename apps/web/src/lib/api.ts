@@ -1,5 +1,5 @@
-import { healthResponseSchema, type HealthResponse } from '@shared/schemas/health';
-import { meResponseSchema, type MeResponse } from '@shared/schemas/me';
+import { healthResponseSchema, type HealthResponse } from '@youno/shared/schemas/health';
+import { meResponseSchema, type MeResponse } from '@youno/shared/schemas/me';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 

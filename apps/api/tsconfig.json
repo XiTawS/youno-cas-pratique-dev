@@ -4,11 +4,11 @@
     "outDir": "dist",
     "types": ["node"],
     "sourceMap": true,
-    "baseUrl": ".",
     "paths": {
-      "@shared": ["../../packages/shared/src/index.ts"],
-      "@shared/schemas/*": ["../../packages/shared/src/schemas/*.ts"]
-    }
+      "@youno/shared": ["../../packages/shared/src/index.ts"],
+      "@youno/shared/schemas/*": ["../../packages/shared/src/schemas/*.ts"]
+    },
+    "noEmit": true
   },
   "include": ["src/**/*.ts"]
 }

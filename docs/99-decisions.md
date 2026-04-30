@@ -30,7 +30,7 @@ Conséquences acceptées : ...
 - 3 packages seulement → un task graph et un cache de build sont inutiles à cette taille.
 - pnpm workspaces est natif, sans config exotique.
 - Migration vers Turborepo possible plus tard sans casser l'existant.
-- Permet le partage trivial des schémas Zod via `@shared` (workspace dependency).
+- Permet le partage trivial des schémas Zod via `@youno/shared` (workspace dependency).
 
 **Conséquences acceptées** : pas de cache de build incrémental (acceptable pour le scope), pas de visualisation du dependency graph, conventions pnpm (workspace protocol) à respecter dans les `package.json`.
 
@@ -209,7 +209,7 @@ Drizzle plutôt que Prisma : TS-first sans génération de client, synergie avec
 **Décision** :
 
 - **1 seul appel** par analyse (one-shot).
-- **Tool use** avec input schema dérivé du schema Zod `@shared/schemas/signals`. Claude est forcé de générer une réponse conforme.
+- **Tool use** avec input schema dérivé du schema Zod `@youno/shared/schemas/signals`. Claude est forcé de générer une réponse conforme.
 - **Temperature 0**.
 - **Modèle** : Claude Sonnet 4.6 (`claude-sonnet-4-6`).
 - **Prompt système court** avec instruction explicite "mets `null` plutôt que d'inventer".

@@ -84,19 +84,19 @@ Modèle Claude Sonnet 4.6 via `@anthropic-ai/claude-agent-sdk`, authentifié par
 
 ### Table `analyses`
 
-| Colonne           | Type            | Notes                              |
-| ----------------- | --------------- | ---------------------------------- |
-| `id`              | uuid (PK)       |                                    |
-| `user_id`         | uuid (FK users) |                                    |
-| `url`             | text            | URL canonique normalisée           |
-| `domain`          | text            | Extrait pour cache et lookup       |
-| `signals`         | jsonb           | Conforme `@shared/schemas/signals` |
-| `tech_stack`      | jsonb           | Liste des technos Wappalyzer       |
-| `score_maturity`  | integer         | 0-100                              |
-| `score_breakdown` | jsonb           | Détail des points par signal       |
-| `status`          | text            | `pending` / `success` / `error`    |
-| `error_message`   | text            | Si `status = error`                |
-| `created_at`      | timestamptz     |                                    |
+| Colonne           | Type            | Notes                                    |
+| ----------------- | --------------- | ---------------------------------------- |
+| `id`              | uuid (PK)       |                                          |
+| `user_id`         | uuid (FK users) |                                          |
+| `url`             | text            | URL canonique normalisée                 |
+| `domain`          | text            | Extrait pour cache et lookup             |
+| `signals`         | jsonb           | Conforme `@youno/shared/schemas/signals` |
+| `tech_stack`      | jsonb           | Liste des technos Wappalyzer             |
+| `score_maturity`  | integer         | 0-100                                    |
+| `score_breakdown` | jsonb           | Détail des points par signal             |
+| `status`          | text            | `pending` / `success` / `error`          |
+| `error_message`   | text            | Si `status = error`                      |
+| `created_at`      | timestamptz     |                                          |
 
 Index sur `domain` + `created_at desc` pour le cache et l'historique.
 

@@ -1,4 +1,4 @@
-import { healthResponseSchema } from '@shared/schemas/health';
+import { healthResponseSchema } from '@youno/shared/schemas/health';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 

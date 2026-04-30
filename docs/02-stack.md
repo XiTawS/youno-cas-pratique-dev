@@ -27,7 +27,7 @@ youno-cas-pratique-dev/
     └── shared/       ← Schémas Zod
 ```
 
-Les packages internes sont référencés via `workspace:*` dans les `package.json`. Le package shared est nommé `@shared`.
+Les packages internes sont référencés via `workspace:*` dans les `package.json`. Le package shared est nommé `@youno/shared`.
 
 ## Front — React + Vite
 
@@ -175,7 +175,7 @@ Claude Sonnet 4.6 (string : `claude-sonnet-4-6`). Sweet spot qualité / vitesse 
 
 1 appel par analyse, pas de chaînage multi-étapes :
 
-- **Tool use forcé** — un outil `extract_company_signals` est défini avec un input schema dérivé du schema Zod `@shared/schemas/signals`. Claude est obligé de générer une réponse conforme. Aucun parsing de JSON cassé à gérer.
+- **Tool use forcé** — un outil `extract_company_signals` est défini avec un input schema dérivé du schema Zod `@youno/shared/schemas/signals`. Claude est obligé de générer une réponse conforme. Aucun parsing de JSON cassé à gérer.
 - **Temperature 0** — tâche d'extraction déterministe, pas créative. Mêmes inputs → même output.
 - **Prompt système court et tranché** — instruction explicite "mets `null` plutôt que d'inventer" pour limiter les hallucinations sur les signaux absents.
 - **Max tokens** — 2000 (large marge pour le JSON de signaux, qui fait ~500-1000 tokens en pratique).
@@ -246,7 +246,7 @@ Free tier permanent (750 h / mois), Render Blueprint (`render.yaml`) pour Infras
 
 ### Imports
 
-- Absolute imports via `tsconfig` paths : `@/components/...`, `@shared/schemas/...`.
+- Absolute imports via `tsconfig` paths : `@/components/...`, `@youno/shared/schemas/...`.
 - Pas de relative imports `../../../` au-delà de 2 niveaux.
 
 ### Commits

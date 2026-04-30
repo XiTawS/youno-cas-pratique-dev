@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -15,7 +15,7 @@
   "dependencies": {
     "@clerk/fastify": "^2.4.0",
     "@fastify/cors": "^10.0.1",
-    "@shared": "workspace:*",
+    "@youno/shared": "workspace:*",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.36.4",
     "fastify": "^5.1.0",
