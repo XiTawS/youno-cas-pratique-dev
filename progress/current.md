@@ -2,11 +2,11 @@
 
 ## État (au 2026-04-30)
 
-Phase **Bootstrap** (J1 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. J1 est en cours : monorepo pnpm fonctionnel en local, API Fastify avec `/api/health`, front Vite + React 19 + Tailwind 4 + shadcn opérationnel, page Home qui ping l'API avec succès. Reste : Clerk (étape 5), Neon + Drizzle (étape 6), premier deploy Vercel + Render (étape 7).
+Phase **Pipeline scraping** (J2 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 terminé** : monorepo pnpm + Fastify + Vite/React/Tailwind/shadcn + Clerk (email + password admin-managed) + Neon/Drizzle (table `users` vide) + déploiement Vercel + Render. Login bout-en-bout fonctionnel sur https://youno-cas-pratique-dev-api.vercel.app via API https://youno-cas-pratique-api.onrender.com.
 
 ## En cours
 
-Étape 5 J1 — intégration Clerk. En attente côté utilisateur pour créer l'app Clerk (ou fournir les clés existantes) et choisir les emails de l'allowlist avant d'ajouter les envs `CLERK_SECRET_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`, `AUTH_ALLOWED_EMAILS`.
+Démarrage J2 — pipeline scraping Firecrawl + Wappalyzer. Endpoint `POST /api/analyze` qui prend une URL et retourne markdown brut + tech stack. Pas encore de persistance ni LLM (J3).
 
 ## Prochaines actions
 
@@ -19,11 +19,11 @@ Phase **Bootstrap** (J1 de la roadmap). Brief reçu le 2026-04-27, échéance li
 - [x] Endpoint `GET /api/health` côté API
 - [x] Init `apps/web` avec Vite + React 19 + TS + Tailwind 4 + shadcn (composant Button)
 - [x] React Router (3 routes) + TanStack Query + page Home qui ping `/api/health`
-- [ ] Créer comptes (si pas déjà faits) : Clerk, Neon, Firecrawl
-- [ ] Setup Clerk (front + back), tester login email + password en local
-- [ ] Setup Neon Postgres + Drizzle, première migration (table `users` vide)
-- [ ] Premier deploy : Vercel (front) + Render (API)
-- [ ] Vérifier CORS + flow login bout-en-bout sur le déployé
+- [x] Créer comptes : Clerk, Neon (Firecrawl à créer en J2)
+- [x] Setup Clerk (front + back), login email + password OK en local et en prod
+- [x] Setup Neon Postgres + Drizzle, première migration (table `users` vide)
+- [x] Premier deploy : Vercel (front) + Render (API)
+- [x] CORS + flow login bout-en-bout validés sur le déployé
 
 ### J2 — Pipeline scraping
 
