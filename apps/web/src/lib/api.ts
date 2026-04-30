@@ -1,3 +1,9 @@
+import {
+  analyzeResponseSchema,
+  analysesListResponseSchema,
+  type AnalyzeResponse,
+  type AnalysesListResponse,
+} from '@youno/shared/schemas/analyze';
 import { healthResponseSchema, type HealthResponse } from '@youno/shared/schemas/health';
 import { meResponseSchema, type MeResponse } from '@youno/shared/schemas/me';
 
@@ -14,6 +20,9 @@ async function apiFetch(path: string, { token, init }: ApiFetchOptions = {}): Pr
   const headers = new Headers(init?.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (init?.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
 
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
@@ -40,4 +49,25 @@ export async function fetchHealth(): Promise<HealthResponse> {
 export async function fetchMe(token: string): Promise<MeResponse> {
   const data = await apiFetch('/api/me', { token });
   return meResponseSchema.parse(data);
+}
+
+// Lance une nouvelle analyse - pipeline complet (10-30s typique).
+export async function fetchAnalyze(token: string, url: string): Promise<AnalyzeResponse> {
+  const data = await apiFetch('/api/analyze', {
+    token,
+    init: { method: 'POST', body: JSON.stringify({ url }) },
+  });
+  return analyzeResponseSchema.parse(data);
+}
+
+// Récupère une analyse persistée par ID (pour la page Analysis).
+export async function fetchAnalysisById(token: string, id: string): Promise<AnalyzeResponse> {
+  const data = await apiFetch(`/api/analyses/${id}`, { token });
+  return analyzeResponseSchema.parse(data);
+}
+
+// Liste des analyses du user (page History) - 50 plus récentes.
+export async function fetchHistory(token: string): Promise<AnalysesListResponse> {
+  const data = await apiFetch('/api/analyses', { token });
+  return analysesListResponseSchema.parse(data);
 }

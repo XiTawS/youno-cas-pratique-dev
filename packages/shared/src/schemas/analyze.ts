@@ -49,3 +49,24 @@ export const analyzeResponseSchema = z.object({
 });
 
 export type AnalyzeResponse = z.infer<typeof analyzeResponseSchema>;
+
+// Item compact pour la liste history (pas de pages markdown ni signals complets,
+// juste de quoi afficher la card dans la liste).
+export const analysisListItemSchema = z.object({
+  id: z.string().uuid(),
+  url: z.string().url(),
+  domain: z.string().min(1),
+  status: z.enum(['pending', 'success', 'error']),
+  scoreMaturity: z.number().int().min(0).max(100).nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+
+export type AnalysisListItem = z.infer<typeof analysisListItemSchema>;
+
+// Réponse de GET /api/analyses (liste history).
+export const analysesListResponseSchema = z.object({
+  items: z.array(analysisListItemSchema),
+});
+
+export type AnalysesListResponse = z.infer<typeof analysesListResponseSchema>;
