@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "types": ["node"],
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared": ["../../packages/shared/src/index.ts"],
+      "@shared/schemas/*": ["../../packages/shared/src/schemas/*.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
