@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gtmSignalsSchema, scoreBreakdownSchema } from './signals';
 
 // Body de POST /api/analyze - une seule URL en input.
 // On force https://www.example.com style. Pas d'URLs IP, pas de schéma autre.
@@ -27,16 +28,24 @@ export const scrapedPageSchema = z.object({
 
 export type ScrapedPage = z.infer<typeof scrapedPageSchema>;
 
-// Réponse de POST /api/analyze - en J2, pas encore de signaux ni de score (J3).
+// Réponse de POST /api/analyze (J3 : signals + score persistés en DB).
 export const analyzeResponseSchema = z.object({
+  // ID persisté en DB - sert pour /analysis/:id côté front (page Analysis J4).
+  id: z.string().uuid(),
   url: z.string().url(),
   // Domaine extrait pour cache et lookup futur (ex. "stripe.com" depuis "https://stripe.com/pricing").
   domain: z.string().min(1),
   pages: z.array(scrapedPageSchema).min(1),
   // Liste de noms de technologies détectées par Wappalyzer (ex. "React", "Stripe", "Google Analytics").
   techStack: z.array(z.string()),
+  // Signaux GTM extraits par le LLM (3 axes + métadonnées).
+  signals: gtmSignalsSchema,
+  // Score Maturité GTM /100 + breakdown des 4 buckets.
+  score: scoreBreakdownSchema,
   // Timestamp ISO 8601 du début du scraping côté serveur.
   scrapedAt: z.string().datetime(),
+  // true si la réponse vient du cache 24h (analyse réutilisée), false sinon.
+  fromCache: z.boolean(),
 });
 
 export type AnalyzeResponse = z.infer<typeof analyzeResponseSchema>;
