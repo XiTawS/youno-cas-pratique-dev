@@ -2,23 +2,19 @@
 
 ## État (au 2026-04-30)
 
-Phase **UI complète** (J4 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 + J2 + J3 terminés** :
+Phase **Polish & livrables** (J5 de la roadmap). Brief reçu le 2026-04-27, échéance livraison ~2026-05-04. **J1 → J4 terminés + refonte scoring** :
 
 - J1 : monorepo pnpm + Fastify + Vite/React/Tailwind/shadcn + Clerk (email + password admin-managed) + Neon/Drizzle + déploiement Vercel + Render
 - J2 : `POST /api/analyze` v1 - Firecrawl + Wappalyzer, validé sur Stripe / Linear / Notion
-- J3 : `POST /api/analyze` v2 - extraction LLM via OpenRouter (Claude Sonnet 4.5, tool use forcé) + scoring Maturité GTM /100 transparent + persistance Neon + cache 24h. Validé live sur Cal (70/100) et Stripe (55/100).
+- J3 : `POST /api/analyze` v2 - extraction LLM via OpenRouter (Claude Sonnet 4.5, tool use forcé) + scoring + persistance Neon + cache 24h
+- J4 : UI complète - Home (form RHF/Zod), Analysis, History, ErrorBoundary, Sonner toasts
+- **Refonte scoring (2026-04-30, voir ADR-013)** : retire le score numérique /100 (inactionnable + cassé sur Stripe). Remplacé par statut qualitatif déterministe (4 niveaux : Trop tôt / À surveiller / Bon timing / Prospect mature) + recommandation textuelle générée par Claude. Schema Signals refait en FR, UI refondue en cards qualitatives.
 
 ## En cours
 
-Démarrage J4 — UI complète. Page Home avec input URL + bouton Analyser (RHF + Zod), page Analysis avec affichage 3 axes + score + détail breakdown, page History.
+Démarrage J5 — polish & livrables. Push de la refonte scoring sur prod en attente, puis README final + Loom + tag v1.0.0 + email à Kaio.
 
-**⚠️ Actions utilisateur requises avant le prochain push prod** : ajouter sur Render (Settings → Environment) :
-
-- `FIRECRAWL_API_KEY` (J2)
-- `OPENROUTER_API_KEY` (J3)
-- `LLM_MODEL=anthropic/claude-sonnet-4.5` (J3, optionnel — défaut OK)
-
-Sans ces envs, le boot Render échouera via la validation Zod fail-fast.
+**⚠️ Action utilisateur avant le push refonte** : confirmer que les envs Render sont OK (`FIRECRAWL_API_KEY`, `OPENROUTER_API_KEY`, `LLM_MODEL`). Aucune nouvelle env ajoutée par la refonte.
 
 ## Prochaines actions
 
@@ -54,10 +50,11 @@ Sans ces envs, le boot Render échouera via la validation Zod fail-fast.
 
 ### J4 — UI complète
 
-- [ ] Page Home avec input URL et bouton Analyser (RHF + Zod)
-- [ ] Page Analysis : affichage 3 axes + score + détail
-- [ ] Page History : liste des analyses passées de l'utilisateur connecté
-- [ ] Loading states + error handling propres
+- [x] Page Home avec input URL et bouton Analyser (RHF + Zod)
+- [x] Page Analysis : affichage statut qualitatif + recommandation + 3 cards signaux + stack
+- [x] Page History : liste des analyses passées avec statut qualitatif
+- [x] Loading states + error handling propres (Sonner + ErrorBoundary)
+- [x] Refonte scoring (ADR-013) : statut qualitatif déterministe + recommandation Claude
 
 ### J5 — Polish & livrables
 

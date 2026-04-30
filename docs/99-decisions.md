@@ -248,7 +248,8 @@ OpenRouter retenu : coût d'entrée nul (essentiel pour le brief 0 €), flexibi
 
 ## ADR-010 — Scoring : "Maturité GTM", calcul hybride — 2026-04-30
 
-**Status** : accepted
+**Status** : superseded
+**Superseded-by** : ADR-013
 
 **Contexte** : le brief suggère "fit pour une boîte qui vend à des SaaS B2B" comme exemple de scoring, mais laisse le choix libre. Trois angles possibles : fit ICP B2B SaaS (générique), maturité GTM (alignée Konsole), buyer intent (signaux d'achat).
 
@@ -294,7 +295,8 @@ OpenRouter retenu : coût d'entrée nul (essentiel pour le brief 0 €), flexibi
 
 ## ADR-011 — Scoring optionnel — affichage simple — 2026-04-30
 
-**Status** : accepted
+**Status** : superseded
+**Superseded-by** : ADR-013
 
 **Contexte** : le brief dit "Optionnel mais apprécié" pour le scoring. Discussion initiale envisageait un affichage riche multi-scores (3 scores indépendants + tags + recommandation textuelle), mais le scope 5-8 h impose des arbitrages.
 
@@ -338,3 +340,66 @@ OpenRouter retenu : coût d'entrée nul (essentiel pour le brief 0 €), flexibi
 - L'admin (Léo) doit créer chaque compte manuellement à l'avance (mais l'API Clerk rend ça scriptable en 30 secondes).
 - Les users doivent gérer un password (mitigé : password manager moderne, ou reset trivial via dashboard Clerk).
 - Pas de "magic link" comme talking point en restitution — remplacé par "j'ai assumé une UX simple cohérente avec un cas pratique 4 utilisateurs ; le flow magic link aurait été un coût de scope sans valeur produit ici".
+
+---
+
+## ADR-013 — Refonte scoring : statut qualitatif + recommandation Claude — 2026-04-30
+
+**Status** : accepted (supersede ADR-010 et ADR-011)
+
+**Contexte** : à l'usage de l'app refonte par Léo, deux problèmes majeurs avec le scoring numérique mis en place dans ADR-010 + ADR-011 :
+
+1. **Score inactionnable** pour l'utilisateur final (un commercial ou Léo lui-même). "Stripe noté 55/100" ne dit rien à un humain qui prospecte — quoi en faire ? Approcher ou pas ? Le score numérique est défendable en ingénierie ("formule transparente") mais pas en produit ("comment je m'en sers ?").
+2. **Pondérations cassées sur des cas réels**. Les buckets 20/40/25/15 d'ADR-011 donnent des scores incohérents : Stripe (référence du SaaS B2B) sortait à 55/100, plus bas que beaucoup de boîtes plus immatures, parce que les buckets growth/tech-stack ne discriminaient pas bien sur les leaders du marché. La formule était cassée pour 80% des cas réels.
+3. **UI inadaptée**. Page Analysis pleine de termes franglais ("Sales motion", "Growth signals", "ICP fit", "Hiring actif"...) inutilement techniques pour un commercial.
+
+**Décision** :
+
+- **Suppression du score numérique /100** (front + back). Plus de formule pondérée, plus de "score breakdown", plus de barres de progression.
+- **Statut qualitatif déterministe à 4 niveaux** calculé en code à partir de signaux booléens factuels :
+  - `too_early` 🌱 Trop tôt — 0/4 signaux maturity présents
+  - `to_watch` 👀 À surveiller — 1-2/4 signaux
+  - `good_timing` ✨ Bon timing — 3/4 signaux
+  - `mature` 🔥 Prospect mature — 4/4 signaux
+- **Recommandation textuelle générée par Claude** dans le même appel d'extraction. 2-3 phrases actionnables ("approche commerciale recommandée + angle d'accroche concret"). Persistée dans une colonne `recommendation` text dédiée.
+- **Refonte du schema Zod des signaux** (Signals au lieu de GtmSignals) :
+  - structure FR avec blocs `company` / `salesMotion` / `maturity` / `icp`
+  - `techStack` déplacé du top-level vers `signals.techStack`
+  - termes franglais bannis de l'UI (sauf enums GTM standards : PLG, Sales-led, Hybrid, SMB, Mid-market, Enterprise)
+
+**Calcul du statut** (`apps/api/src/services/status.ts`) :
+
+```ts
+const hasPricing = signals.salesMotion.pricingPublic;
+const hasCustomers = signals.maturity.customersPage || (signals.maturity.clientLogosCount ?? 0) > 0;
+const hasActiveBlog = signals.maturity.blogActive;
+const hasHiring = signals.maturity.salesMarketingHiring;
+const count = [hasPricing, hasCustomers, hasActiveBlog, hasHiring].filter(Boolean).length;
+if (count === 4) return 'mature';
+if (count === 3) return 'good_timing';
+if (count >= 1) return 'to_watch';
+return 'too_early';
+```
+
+**Pourquoi statut qualitatif > score numérique** :
+
+- **Actionnabilité** : "Bon timing" + recommandation Claude = un commercial sait quoi faire. "55/100" demande au commercial de mentaliser ce que ça veut dire.
+- **Honnêteté** : 4 niveaux = on assume qu'on classe grossièrement. 100 niveaux suggère une précision qu'on n'a pas (le LLM extrait des signaux booléens, pas des graduations).
+- **Talking point en restitution renforcé** : "j'ai retiré le score numérique parce qu'il était inactionnable et la formule cassait sur les leaders du marché — j'ai préféré un statut qualitatif déterministe + une recommandation textuelle générée par Claude".
+
+**Pourquoi calcul déterministe en code (pas par Claude)** :
+
+- Reproductibilité : mêmes signaux → même statut, debuggable.
+- Transparence : la règle est explicite dans le code, pas dans une boîte noire.
+- Coût : 0 token supplémentaire vs faire calculer par le LLM.
+
+**Pourquoi recommandation par Claude (pas par template)** :
+
+- Adaptation au contexte (le LLM sait dire "approchez par leur post LinkedIn récent sur le hiring SDR" vs un template générique).
+- Pas de cost notable : 1 champ ajouté au tool schema, même appel.
+
+**Conséquences acceptées** :
+
+- Migration DB destructive : drop `score_maturity` + `score_breakdown` + `tech_stack`, ajout `pipeline_status` (renommé depuis `status`) + `status` (qualitatif) + `recommendation`. Les rows existantes ont été supprimées (`DELETE FROM analyses` dans 0002*refonte_status_recommendation.sql) — pas de migration de données pour le scope cas pratique (4 rows de test). Voir `apps/api/drizzle/0002*\*.sql`.
+- Le statut peut paraître grossier (4 niveaux) — assumé, voir "Pourquoi statut qualitatif".
+- Le seuil "blog < 60 jours" pour `blogActive` est basé sur la date de génération du contenu telle que perçue par le LLM (subjective). Talking point en restitution comme limite connue.

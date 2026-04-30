@@ -38,7 +38,7 @@ Ce que ce projet **refuse explicitement de faire**, pour rester dans le scope 5-
 - **Pas de mobile-first**. UI desktop suffit pour la démo et la restitution. Responsive correct mais pas optimisé mobile.
 - **Pas d'auth complexe** (SSO entreprise, RBAC, multi-tenant). Clerk email + password (comptes créés par admin) + allowlist couvrent le besoin.
 - **Pas de scraping multi-domaine ni de crawl récursif**. Une URL = une boîte = 3-5 pages clés analysées.
-- **Pas de scoring paramétrable par ICP utilisateur**. Le score "Maturité GTM" est calculé avec une formule fixe ; la version paramétrable est une évolution v2 documentée.
+- **Pas de scoring paramétrable par ICP utilisateur**. Le statut qualitatif (Trop tôt / À surveiller / Bon timing / Prospect mature, voir ADR-013) est calculé avec une formule fixe ; la version paramétrable est une évolution v2 documentée.
 - **Pas d'export CSV / PDF / API publique**. Stretch goal seulement si temps restant en fin de scope.
 - **Pas de wrapping d'APIs tierces de data brokerage** (Clearbit, Apollo, ZoomInfo). Le brief les suggérait mais Clearbit a été sunsetée par HubSpot en avril 2025, et l'angle "j'agrège des APIs" est moins défendable que "j'extrais avec mon propre pipeline LLM". Voir ADR-009.
 
@@ -68,12 +68,12 @@ Ce que ce projet **refuse explicitement de faire**, pour rester dans le scope 5-
 - Wrapper `services/extraction.ts` (Claude Agent SDK, 1 appel, tool use, temperature 0)
 - Wrapper `services/scoring.ts` (formule Maturité GTM /100, transparente)
 - Persistance des analyses en DB (table `analyses`)
-- **Critère de succès** : `POST /api/analyze` retourne signaux structurés + score + détail des points
+- **Critère de succès** : `POST /api/analyze` retourne signaux structurés + statut qualitatif + recommandation actionnable (voir ADR-013)
 
 ### J4 — UI complète
 
 - Page Home (input URL + bouton Analyser)
-- Page Analysis (affichage des 3 axes + score + tags)
+- Page Analysis (affichage statut qualitatif + recommandation + 3 cards signaux + stack technique)
 - Page History (liste des analyses passées de l'utilisateur)
 - Loading states, error handling
 - **Critère de succès** : démo end-to-end fluide sur 3 URLs (Stripe, Linear, une early-stage)

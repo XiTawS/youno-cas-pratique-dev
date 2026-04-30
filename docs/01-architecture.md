@@ -10,15 +10,15 @@ Application React 19 + Vite, déployée sur Vercel. Responsabilité : interface 
 
 ### `apps/api` — API Fastify
 
-API Node.js Fastify (TypeScript), déployée sur Render. Responsabilité : orchestration du pipeline d'analyse (scraping → tech stack → LLM → scoring), persistance, vérification d'authentification Clerk, exposition REST.
+API Node.js Fastify (TypeScript), déployée sur Render. Responsabilité : orchestration du pipeline d'analyse (scraping → tech stack → LLM → statut qualitatif), persistance, vérification d'authentification Clerk, exposition REST.
 
 ### `packages/shared` — Schémas Zod partagés
 
-Package interne consommé par `apps/web` et `apps/api`. Source de vérité unique pour les types et schémas de l'API : signaux GTM, résultat d'analyse, score. Les schémas Zod servent à la fois à la validation runtime (Fastify, front) et à la dérivation de types TS.
+Package interne consommé par `apps/web` et `apps/api`. Source de vérité unique pour les types et schémas de l'API : signaux factuels (`SignalsSchema`), statut qualitatif (`AnalysisStatus`), résultat d'analyse. Les schémas Zod servent à la fois à la validation runtime (Fastify, front) et à la dérivation de types TS.
 
 ### Neon Postgres — Base de données
 
-Postgres serverless hébergé. Stocke deux tables principales : `users` (synchronisée avec Clerk via webhook ou lazy-load) et `analyses` (historique des analyses, signaux JSONB, score, métadonnées).
+Postgres serverless hébergé. Stocke deux tables principales : `users` (synchronisée avec Clerk via lazy-upsert à la 1ʳᵉ analyse) et `analyses` (historique des analyses, signaux JSONB, statut qualitatif, recommandation textuelle).
 
 ### Clerk — Authentification
 
@@ -32,9 +32,9 @@ Service externe. Endpoint `/map` pour découvrir les pages d'un domaine, endpoin
 
 Lib npm self-hostée, parse le HTML brut récupéré pour identifier les technologies utilisées (frameworks, analytics, CMS, payments, etc.). Aucun appel externe.
 
-### Claude (Anthropic) — Extraction LLM
+### Claude via OpenRouter — Extraction LLM
 
-Modèle Claude Sonnet 4.6 via `@anthropic-ai/claude-agent-sdk`, authentifié par OAuth lié à l'abonnement Max. Un seul appel par analyse, tool use forcé pour sortie JSON conforme au schema Zod, temperature 0.
+Modèle Claude Sonnet 4.5 via OpenRouter (API OpenAI-compatible, voir ADR-009). Un seul appel par analyse, tool use forcé pour sortie JSON conforme à `SignalsSchema`, temperature 0. Le LLM génère aussi `signals.recommendation` (texte 2-3 phrases FR actionnable pour le commercial).
 
 ## Flux principal — Analyse d'une URL
 
@@ -58,13 +58,14 @@ Modèle Claude Sonnet 4.6 via `@anthropic-ai/claude-agent-sdk`, authentifié par
 [7] Wappalyzer.parse(html)               (services/tech-stack.ts)
        → liste techs détectées
        ↓
-[8] Claude SDK (markdown + tech stack)   (services/extraction.ts)
-       → JSON conforme schema signaux (tool use)
+[8] Claude via OpenRouter                (services/extraction.ts)
+       → JSON conforme SignalsSchema (tool use)
+       → inclut signals.recommendation (texte 2-3 phrases FR)
        ↓
-[9] scoring.compute(signaux)             (services/scoring.ts)
-       → score Maturité GTM /100 + détail
+[9] computeStatus(signaux)               (services/status.ts)
+       → statut qualitatif déterministe (too_early / to_watch / good_timing / mature)
        ↓
-[10] DB.insert(analyse complète)         (db/)
+[10] DB.update(analyse complète)         (db/)
        ↓
 [11] Réponse JSON                        (API → front)
        ↓
@@ -84,32 +85,33 @@ Modèle Claude Sonnet 4.6 via `@anthropic-ai/claude-agent-sdk`, authentifié par
 
 ### Table `analyses`
 
-| Colonne           | Type            | Notes                                    |
-| ----------------- | --------------- | ---------------------------------------- |
-| `id`              | uuid (PK)       |                                          |
-| `user_id`         | uuid (FK users) |                                          |
-| `url`             | text            | URL canonique normalisée                 |
-| `domain`          | text            | Extrait pour cache et lookup             |
-| `signals`         | jsonb           | Conforme `@youno/shared/schemas/signals` |
-| `tech_stack`      | jsonb           | Liste des technos Wappalyzer             |
-| `score_maturity`  | integer         | 0-100                                    |
-| `score_breakdown` | jsonb           | Détail des points par signal             |
-| `status`          | text            | `pending` / `success` / `error`          |
-| `error_message`   | text            | Si `status = error`                      |
-| `created_at`      | timestamptz     |                                          |
+Voir ADR-013 pour la refonte (statut qualitatif + recommandation, plus de score numérique).
+
+| Colonne           | Type            | Notes                                                                                                  |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------ |
+| `id`              | uuid (PK)       |                                                                                                        |
+| `user_id`         | uuid (FK users) | ON DELETE CASCADE                                                                                      |
+| `url`             | text            | URL canonique normalisée                                                                               |
+| `domain`          | text            | Extrait pour cache et lookup                                                                           |
+| `pipeline_status` | text            | `pending` / `success` / `error` - statut opérationnel du pipeline                                      |
+| `error_message`   | text            | Si `pipeline_status = error`                                                                           |
+| `signals`         | jsonb           | Conforme `@youno/shared/schemas/signals` `SignalsSchema`                                               |
+| `status`          | text            | `too_early` / `to_watch` / `good_timing` / `mature` - statut qualitatif calculé en code (voir ADR-013) |
+| `recommendation`  | text            | Recommandation actionnable générée par Claude (dupliquée hors signals JSONB pour query SQL)            |
+| `created_at`      | timestamptz     |                                                                                                        |
 
 Index sur `domain` + `created_at desc` pour le cache et l'historique.
 
 ## Dépendances externes
 
-| Service                   | Critique ?  | Plan                      | Failure mode                                  |
-| ------------------------- | ----------- | ------------------------- | --------------------------------------------- |
-| Vercel                    | Oui (front) | Free                      | Démo inaccessible si down                     |
-| Render                    | Oui (API)   | Free                      | API down, front affiche erreur                |
-| Neon Postgres             | Oui         | Free 3 GB                 | Pas de persistance, analyses live impossibles |
-| Clerk                     | Oui         | Free 10k MAU              | Login impossible                              |
-| Firecrawl                 | Oui         | Free 500 credits one-time | Analyses impossibles                          |
-| Anthropic (via SDK Agent) | Oui         | OAuth abo Max             | Extraction LLM impossible                     |
+| Service             | Critique ?  | Plan                       | Failure mode                                  |
+| ------------------- | ----------- | -------------------------- | --------------------------------------------- |
+| Vercel              | Oui (front) | Free                       | Démo inaccessible si down                     |
+| Render              | Oui (API)   | Free                       | API down, front affiche erreur                |
+| Neon Postgres       | Oui         | Free 3 GB                  | Pas de persistance, analyses live impossibles |
+| Clerk               | Oui         | Free 10k MAU               | Login impossible                              |
+| Firecrawl           | Oui         | Free 500 credits one-time  | Analyses impossibles                          |
+| OpenRouter (Claude) | Oui         | $1 gratuit + pay-per-token | Extraction LLM impossible                     |
 
 Toutes les dépendances ont un plan gratuit suffisant pour le scope. Aucune carte bancaire nécessaire.
 
