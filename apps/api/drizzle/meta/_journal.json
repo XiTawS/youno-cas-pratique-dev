@@ -8,6 +8,13 @@
       "when": 1777560086408,
       "tag": "0000_flowery_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777581327952,
+      "tag": "0001_bumpy_shaman",
+      "breakpoints": true
     }
   ]
 }
